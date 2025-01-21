@@ -1,0 +1,27 @@
+{
+  "name": "softbody",
+  "version": "0.0.1",
+  "description": "",
+  "browserslist": "> 0.5%, last 2 versions, not dead",
+  "scripts": {
+    "start": "parcel src/index.html --open",
+    "build": "parcel build src/index.html --public-url ./"
+  },
+  "dependencies": {
+    "@monogrid/gainmap-js": "^3.0.6",
+    "chroma-js": "^3.1.1",
+    "dat.gui": "0.x",
+    "simplex-noise": "^4.0.3",
+    "three": "^0.172.0"
+  },
+  "devDependencies": {
+    "@parcel/transformer-glsl": "^2.9.3",
+    "@parcel/transformer-sass": "^2.9.3",
+    "parcel": "^2.9.3"
+  },
+  "keywords": [],
+  "alias": {
+    "three/webgpu": "three/src/Three.WebGPU.js",
+    "three/tsl": "three/src/Three.TSL.js"
+  }
+}

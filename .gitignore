@@ -1,0 +1,6 @@
+dist/
+.parcel-cache/
+node_modules/
+src_old/
+.idea/
+src/assets/others/
