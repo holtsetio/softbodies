@@ -149,19 +149,23 @@ export class FEMPhysics {
     }
 
     addVertex(x,y,z) {
-        this.vertices.push({x,y,z,influencers: [], triangles: []});
+        const id = this.vertexCount;
+        const vertex = {x,y,z,id,influencers: [], triangles: []};
+        this.vertices.push(vertex);
         this.vertexCount++;
-        return this.vertexCount - 1;
+        return vertex;
     }
 
-    addTet(a,b,c,d) {
-        this.tets.push(a,b,c,d);
-        this.vertices[a].influencers.push(this.tetCount * 4 + 0);
-        this.vertices[b].influencers.push(this.tetCount * 4 + 1);
-        this.vertices[c].influencers.push(this.tetCount * 4 + 2);
-        this.vertices[d].influencers.push(this.tetCount * 4 + 3);
+    addTet(v0,v1,v2,v3) {
+        const id = this.tetCount;
+        const tet = {id,v0,v1,v2,v3};
+        this.tets.push(tet);
+        v0.influencers.push(id * 4 + 0);
+        v1.influencers.push(id * 4 + 1);
+        v2.influencers.push(id * 4 + 2);
+        v3.influencers.push(id * 4 + 3);
         this.tetCount++;
-        return this.tetCount - 1;
+        return tet;
     }
 
     bake() {
@@ -175,22 +179,13 @@ export class FEMPhysics {
         const restPoses = new Array(this.tetCount*4*4).fill(0);
 
         for (let i=0; i<this.tetCount; i++) {
-            for (let j = 0; j < 4; j++) {
-                const vertex = this.vertices[this.tets[i*4+j]];
-                restPoses[(i*4+j)*4 + 0] = vertex.x;
-                restPoses[(i*4+j)*4 + 1] = vertex.y;
-                restPoses[(i*4+j)*4 + 2] = vertex.z;
-                restPoses[(i*4+j)*4 + 3] = 0;
-            }
-
-            const v0id = this.tets[i*4+0];
-            const v1id = this.tets[i*4+1];
-            const v2id = this.tets[i*4+2];
-            const v3id = this.tets[i*4+3];
-            const v0 = this.vertices[v0id];
-            const v1 = this.vertices[v1id];
-            const v2 = this.vertices[v2id];
-            const v3 = this.vertices[v3id];
+            const { v0, v1, v2, v3 } = this.tets[i];
+            [v0, v1, v2, v3].forEach((vertex,index) => {
+                restPoses[(i*4+index)*4 + 0] = vertex.x;
+                restPoses[(i*4+index)*4 + 1] = vertex.y;
+                restPoses[(i*4+index)*4 + 2] = vertex.z;
+                restPoses[(i*4+index)*4 + 3] = 0;
+            });
 
             const e = oldrestingPose.elements;
             e[0] = v1.x - v0.x;
@@ -204,10 +199,10 @@ export class FEMPhysics {
             e[8] = v3.z - v0.z;
             const V = oldrestingPose.determinant() / 6;
             let pm = V / 4.0 * this.density;
-            invMass[v0id] += pm;
-            invMass[v1id] += pm;
-            invMass[v2id] += pm;
-            invMass[v3id] += pm;
+            invMass[v0.id] += pm;
+            invMass[v1.id] += pm;
+            invMass[v2.id] += pm;
+            invMass[v3.id] += pm;
             invRestVolume[i] = 1/V;
             quats0[i*4+0] = 0;
             quats0[i*4+1] = 0;
@@ -237,7 +232,15 @@ export class FEMPhysics {
         }
 
 
-        const tetArray = new Int32Array(this.tets);
+        const tetArray = new Int32Array(this.tetCount * 4);
+        for (let i=0; i<this.tetCount; i++) {
+            const { v0,v1,v2,v3 } = this.tets[i];
+            tetArray[i*4+0] = v0.id;
+            tetArray[i*4+1] = v1.id;
+            tetArray[i*4+2] = v2.id;
+            tetArray[i*4+3] = v3.id;
+        }
+
         const restPosesArray = new Float32Array(restPoses);
         const quatsArray = new Float32Array(quats0);
         const invMassArray = new Float32Array(invMass);

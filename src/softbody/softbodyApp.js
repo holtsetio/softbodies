@@ -93,8 +93,8 @@ class SoftbodyApp {
         await this.softbodyModel.bake();
         this.scene.add(this.softbodyModel.object);
 
-        //this.tetVisualizer = new TetVisualizer(this.physics);
-        //this.scene.add(this.tetVisualizer.object);
+        this.tetVisualizer = new TetVisualizer(this.physics);
+        this.scene.add(this.tetVisualizer.object);
         /*
         this.collisionGeometry = new CollisionGeometry();
         this.scene.add(this.collisionGeometry.object);

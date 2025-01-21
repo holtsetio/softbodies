@@ -17,34 +17,28 @@ import {
 
 export class SoftbodyModel {
     physics = null;
+    vertices = [];
+    tets = [];
     constructor(physics) {
         this.physics = physics;
         console.log(Icosphere);
 
         const { tetVerts, tetIds } = Icosphere;
+
         for (let i=0; i < tetVerts.length; i += 3) {
             const x = tetVerts[i]*0.2;
             const y = tetVerts[i+1]*0.2;
             const z = tetVerts[i+2]*0.2;
-            this.physics.addVertex(x,y,z);
+            this.vertices.push(this.physics.addVertex(x,y,z));
         }
 
         for (let i=0; i < tetIds.length; i += 4) {
-            const a = tetIds[i]-1;
-            const b = tetIds[i+1]-1;
-            const c = tetIds[i+2]-1;
-            const d = tetIds[i+3]-1;
-            this.physics.addTet(a,b,c,d);
+            const a = this.vertices[tetIds[i]-1]];
+            const b = this.vertices[tetIds[i+1]-1];
+            const c = this.vertices[tetIds[i+2]-1];
+            const d = this.vertices[tetIds[i+3]-1];
+            this.tets.push(this.physics.addTet(a,b,c,d));
         }
-
-        /*const verticesBuffer = instancedArray(Dragon.dragonTetVerts, 'vec3');
-        this.material = new THREE.SpriteNodeMaterial();
-        this.material.positionNode = Fn(() => {
-            return verticesBuffer.element(instanceIndex);
-        })();
-        this.object = new THREE.Mesh(new THREE.PlaneGeometry(0.01, 0.01), this.material);
-        this.object.count = verts.length / 3;
-        this.object.frustumCulled = false;*/
     }
 
     createMaterial(triangleBuffer) {
@@ -82,24 +76,21 @@ export class SoftbodyModel {
     createGeometry() {
         const triangleDict = {};
         const triangles = [];
-        const addTriangle = (v0id, v1id, v2id, v3id) => {
-            const id = [v0id, v1id, v2id].sort((a,b) => { return a - b; }).join('.');
+        const addTriangle = (v0, v1, v2, v3) => {
+            const id = [v0.id, v1.id, v2.id].sort((a,b) => { return a - b; }).join('.');
             if (triangleDict[id]) {
                 delete triangleDict[id];
             } else {
-                triangleDict[id] = [v0id, v1id, v2id, v3id];
+                triangleDict[id] = [v0, v1, v2, v3];
             }
         };
 
-        for (let i=0; i<this.physics.tetCount; i++) {
-            const v0id = this.physics.tets[i*4+0];
-            const v1id = this.physics.tets[i*4+1];
-            const v2id = this.physics.tets[i*4+2];
-            const v3id = this.physics.tets[i*4+3];
-            addTriangle(v0id, v1id, v2id, v3id);
-            addTriangle(v1id, v2id, v3id, v0id);
-            addTriangle(v2id, v3id, v0id, v1id);
-            addTriangle(v3id, v0id, v1id, v2id);
+        for (let i=0; i<this.tets.length; i++) {
+            const { v0,v1,v2,v3 } = this.tets[i];
+            addTriangle(v0, v1, v2, v3);
+            addTriangle(v1, v2, v3, v0);
+            addTriangle(v2, v3, v0, v1);
+            addTriangle(v3, v0, v1, v2);
         }
 
         const tangent = new THREE.Vector3();
@@ -108,24 +99,19 @@ export class SoftbodyModel {
 
         Object.keys(triangleDict).forEach(key => {
             const triangle = triangleDict[key];
-            let [v0id, v1id, v2id, v3id] = triangle;
-            let v0 = this.physics.vertices[v0id];
-            let v1 = this.physics.vertices[v1id];
-            let v2 = this.physics.vertices[v2id];
-            let v3 = this.physics.vertices[v3id];
+            let [v0, v1, v2, v3] = triangle;
             tangent.copy(v0).sub(v1);
             bitangent.copy(v0).sub(v2);
             toInner.copy(v3).sub(v0);
             if (tangent.cross(bitangent).dot(toInner) > 0) {
-                [v1id, v2id] = [v2id, v1id];
                 [v1, v2] = [v2, v1];
             }
             v0.isSurface = true;
-            v0.triangles.push([v1id,v2id]);
+            v0.triangles.push([v1,v2]);
             v1.isSurface = true;
-            v1.triangles.push([v2id,v0id]);
+            v1.triangles.push([v2,v0]);
             v2.isSurface = true;
-            v2.triangles.push([v0id,v1id]);
+            v2.triangles.push([v0,v1]);
             triangles.push([v0,v1,v2]);
         });
 
@@ -133,10 +119,10 @@ export class SoftbodyModel {
         const vertexIdArray = [];
         const indices = [];
 
-        for (let i=0; i<this.physics.vertexCount; i++) {
-            const vertex = this.physics.vertices[i];
+        for (let i=0; i<this.vertices.length; i++) {
+            const vertex = this.vertices[i];
             if (!vertex.isSurface) { continue; }
-            vertexIdArray.push(i);
+            vertexIdArray.push(vertex.id);
             vertex.geometryVertexId = geometryVertexCount;
             geometryVertexCount++;
         }
@@ -149,8 +135,8 @@ export class SoftbodyModel {
             trianglePtrArray[i * 2 + 0] = trianglePtr;
             trianglePtrArray[i * 2 + 1] = vertex.triangles.length;
             vertex.triangles.forEach(([v1,v2]) => {
-                triangleArray[trianglePtr * 2 + 0] = v1;
-                triangleArray[trianglePtr * 2 + 1] = v2;
+                triangleArray[trianglePtr * 2 + 0] = v1.id;
+                triangleArray[trianglePtr * 2 + 1] = v2.id;
                 trianglePtr++;
             });
         }
