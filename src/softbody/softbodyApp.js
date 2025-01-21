@@ -87,11 +87,14 @@ class SoftbodyApp {
 
 
         this.physics = new FEMPhysics(this.renderer);
-        this.softbodyModel = new SoftbodyModel(this.physics);
-        //this.scene.add(this.softbodyModel.object);
+        this.physics.addObject(SoftbodyModel);
+        for (let i=0; i<10; i++) {
+            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3(i*3,0,0));
+            this.scene.add(softbody.object);
+        }
         await this.physics.bake();
-        await this.softbodyModel.bake();
-        this.scene.add(this.softbodyModel.object);
+
+
 
         //this.tetVisualizer = new TetVisualizer(this.physics);
         //this.scene.add(this.tetVisualizer.object);

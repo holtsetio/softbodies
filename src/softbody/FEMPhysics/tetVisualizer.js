@@ -7,7 +7,7 @@ export class TetVisualizer {
         this.physics = physics;
         this.vertexMaterial = new THREE.SpriteNodeMaterial();
         this.vertexMaterial.positionNode = Fn(() => {
-            return this.physics.vertexBuffer.element(instanceIndex);
+            return this.physics.positionBuffer.element(instanceIndex);
         })();
         this.vertexObject = new THREE.Mesh(new THREE.PlaneGeometry(0.01, 0.01), this.vertexMaterial);
         this.vertexObject.count = this.physics.vertexCount;
@@ -21,7 +21,7 @@ export class TetVisualizer {
             const vertices = this.physics.tetBuffer.element(instanceIndex);
             const tetIndex = attribute('vertexIndex');
             const vertexId = vertices.element(tetIndex);
-            return this.physics.vertexBuffer.element(vertexId);
+            return this.physics.positionBuffer.element(vertexId);
         } )();
 
         const tetGeometry = new THREE.InstancedBufferGeometry();

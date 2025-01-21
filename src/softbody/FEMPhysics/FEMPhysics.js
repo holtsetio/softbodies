@@ -19,7 +19,7 @@ import {
     If,
     Loop,
     Break,
-    normalize, Return, uniform, select, time
+    normalize, Return, uniform, select, time, mix, min
 } from "three/tsl";
 import {mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
 
@@ -131,7 +131,7 @@ export class FEMPhysics {
 
     tets = [];
 
-    oldrestingPoses = [];
+    objects = [];
 
     vertexCount = 0;
 
@@ -169,7 +169,11 @@ export class FEMPhysics {
         return tet;
     }
 
-    bake() {
+    addObject(object) {
+        this.objects.push(object);
+    }
+
+    async bake() {
         console.log(this.vertexCount + " vertices");
         console.log(this.tetCount + " tetrahedrons");
         const oldrestingPose = new THREE.Matrix3();
@@ -351,20 +355,29 @@ export class FEMPhysics {
                 weight.addAssign(restPosition.w);
             });
             position.divAssign(weight);
+            const currentPosition = this.positionBuffer.element(instanceIndex).toVar();
+            const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
 
-            const noise = mx_perlin_noise_float(vec3(position.xz.mul(0.3), this.uniforms.time.mul(0.1)));
-            const planePosition = float(-5).add(noise); //this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
+            position.assign(mix(position, currentPosition, 0.41));
+
+            const noise = mx_perlin_noise_float(vec3(position.xz.mul(0.1), this.uniforms.time.mul(1.1)));
+            const planePosition = float(-5).add(noise.mul(3)); //this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
             If(position.y.lessThan(planePosition), () => {
                 position.y.assign(planePosition);
+                const F = prevPosition.sub(position);
+                position.xz.addAssign(F.xz.mul(min(1.0, dt.mul(1000))));
             });
 
-            const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
+
             const { dt, gravity } = this.uniforms;
             const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.998);
             this.prevPositionBuffer.element(instanceIndex).assign(position);
             const newPosition = position.add(velocity.mul(dt));
             this.positionBuffer.element(instanceIndex).assign(newPosition);
         })().compute(this.vertexCount);
+
+        const objectPromises = this.objects.map(object => object.bake(this));
+        await Promise.all(objectPromises);
     }
 
     async update(interval, elapsed) {
