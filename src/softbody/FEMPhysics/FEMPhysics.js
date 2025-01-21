@@ -211,14 +211,14 @@ export class FEMPhysics {
             quats0[index*4+3] = 1;
         });
 
-        const vertexArray = new Float32Array(this.vertexCount * 3);
+        const positionArray = new Float32Array(this.vertexCount * 3);
         const influencerPtrArray = new Uint32Array(this.vertexCount * 2); // x: ptr, y: length
         const influencerArray = new Uint32Array(this.tetCount * 4);
         let influencerPtr = 0;
         this.vertices.forEach((vertex, index) => {
-            vertexArray[index*3+0] = vertex.x * 1.0;// + Math.random() * 0.001;
-            vertexArray[index*3+1] = vertex.y * 1.0;// + Math.random() * 0.001;
-            vertexArray[index*3+2] = vertex.z * 1.0;// + Math.random() * 0.001;
+            positionArray[index*3+0] = vertex.x * 1.0;// + Math.random() * 0.001;
+            positionArray[index*3+1] = vertex.y * 1.0;// + Math.random() * 0.001;
+            positionArray[index*3+2] = vertex.z * 1.0;// + Math.random() * 0.001;
             influencerPtrArray[index * 2 + 0] = influencerPtr;
             influencerPtrArray[index * 2 + 1] = vertex.influencers.length;
             vertex.influencers.forEach(influencer => {
@@ -246,7 +246,8 @@ export class FEMPhysics {
         const invRestVolumeArray = new Float32Array(invRestVolume);
         const velocityArray = new Float32Array(vel0);
 
-        this.vertexBuffer = instancedArray(vertexArray, 'vec3');
+        this.positionBuffer = instancedArray(positionArray, 'vec3');
+        this.prevPositionBuffer = instancedArray(positionArray, 'vec3');
         this.influencerPtrBuffer = instancedArray(influencerPtrArray, 'uvec2');
         this.influencerBuffer = instancedArray(influencerArray, 'uint');
         this.tetBuffer = instancedArray(tetArray, 'ivec4');
@@ -259,6 +260,8 @@ export class FEMPhysics {
         this.uniforms.vertexCount = uniform(this.vertexCount, "int");
         this.uniforms.tetCount = uniform(this.tetCount, "int");
         this.uniforms.time = uniform(0, "float");
+        this.uniforms.dt = uniform(1, "float");
+        this.uniforms.gravity = uniform(new THREE.Vector3(0,-9.81,0), "vec3");
 
         this.kernels.solveElemPass = Fn(() => {
             If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
@@ -266,10 +269,10 @@ export class FEMPhysics {
             });
             // Gather this tetrahedron's 4 vertex positions
             const vertexIds = this.tetBuffer.element(instanceIndex);
-            const pos0 = this.vertexBuffer.element(vertexIds.x).toVar();
-            const pos1 = this.vertexBuffer.element(vertexIds.y).toVar();
-            const pos2 = this.vertexBuffer.element(vertexIds.z).toVar();
-            const pos3 = this.vertexBuffer.element(vertexIds.w).toVar();
+            const pos0 = this.positionBuffer.element(vertexIds.x).toVar();
+            const pos1 = this.positionBuffer.element(vertexIds.y).toVar();
+            const pos2 = this.positionBuffer.element(vertexIds.z).toVar();
+            const pos3 = this.positionBuffer.element(vertexIds.w).toVar();
 
             // The Reference Rest Pose Positions
             // These are the same as the resting pose, but they're already pre-rotated
@@ -348,46 +351,33 @@ export class FEMPhysics {
                 weight.addAssign(restPosition.w);
             });
             position.divAssign(weight);
-            const oldPosition = this.vertexBuffer.element(instanceIndex);
-            const delta = position.sub(oldPosition);
 
-            const gravity = vec3(0,-9.81/10000,0);
-            const velocity = this.velocityBuffer.element(instanceIndex).toVar();
-
-            velocity.mulAssign(0.980).addAssign(delta.mul(0.99999)).addAssign(gravity);
-
-            const projectedPosition = oldPosition.add(velocity);
-            //const noise = mx_perlin_noise_float(vec3(projectedPosition.xz.mul(0.3), this.uniforms.time.mul(0.1)));
-            const planePosition = float(-5).add(this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
-            If(projectedPosition.y.lessThan(planePosition), () => {
-                velocity.y.subAssign(projectedPosition.y.sub(planePosition));
+            const noise = mx_perlin_noise_float(vec3(position.xz.mul(0.3), this.uniforms.time.mul(0.1)));
+            const planePosition = float(-5).add(noise); //this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
+            If(position.y.lessThan(planePosition), () => {
+                position.y.assign(planePosition);
             });
-            this.velocityBuffer.element(instanceIndex).assign(velocity);
 
-            //this.vertexBuffer.element(instanceIndex).assign(oldPosition.add(delta.mul(2)));
+            const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
+            const { dt, gravity } = this.uniforms;
+            const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.998);
+            this.prevPositionBuffer.element(instanceIndex).assign(position);
+            const newPosition = position.add(velocity.mul(dt));
+            this.positionBuffer.element(instanceIndex).assign(newPosition);
         })().compute(this.vertexCount);
-
-        this.kernels.applyForcesPass = Fn(()=>{
-            If(instanceIndex.greaterThanEqual(this.uniforms.vertexCount), () => {
-                Return();
-            });
-            const force = this.velocityBuffer.element(instanceIndex); //.addAssign(delta);
-            this.vertexBuffer.element(instanceIndex).addAssign(force);
-        })().compute(this.vertexCount);
-
     }
 
     async update(interval, elapsed) {
         interval = Math.min(interval, 1/60);
         const steps = 5;
-        const dt = interval / steps;
+        const dt = Math.max(0.000001, interval / steps);
 
+        this.uniforms.dt.value = dt;
         for (let i=0; i<steps; i++) {
             this.time += dt;
             this.uniforms.time.value = this.time;
             await this.renderer.computeAsync(this.kernels.solveElemPass);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
-            await this.renderer.computeAsync(this.kernels.applyForcesPass);
         }
     }
 }

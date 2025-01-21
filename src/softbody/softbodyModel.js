@@ -23,7 +23,7 @@ export class SoftbodyModel {
         this.physics = physics;
         console.log(Icosphere);
 
-        const { tetVerts, tetIds } = Icosphere;
+        const { tetVerts, tetIds } = Cube;
 
         for (let i=0; i < tetVerts.length; i += 3) {
             const x = tetVerts[i]*0.2;
@@ -52,7 +52,7 @@ export class SoftbodyModel {
         const vNormal = varying(vec3(0), "v_normalView");
         this.material.positionNode = Fn(() => {
             const vertexId = attribute('vertexId');
-            const position = this.physics.vertexBuffer.element(vertexId).xyz.toVar();
+            const position = this.physics.positionBuffer.element(vertexId).xyz.toVar();
 
             const trianglePtr = attribute('trianglePtr');
             const ptrStart = trianglePtr.x.toVar();
@@ -60,8 +60,8 @@ export class SoftbodyModel {
             const normal = vec3().toVar();
             Loop({ start: ptrStart, end: ptrEnd,  type: 'uint', condition: '<' }, ({ i })=>{
                 const triangle = triangleBuffer.element(i);
-                const v1 = this.physics.vertexBuffer.element(triangle.x).xyz;
-                const v2 = this.physics.vertexBuffer.element(triangle.y).xyz;
+                const v1 = this.physics.positionBuffer.element(triangle.x).xyz;
+                const v2 = this.physics.positionBuffer.element(triangle.y).xyz;
                 const tangent = v1.sub(position);
                 const bitangent = v2.sub(position);
                 normal.addAssign(cross(tangent,bitangent));
