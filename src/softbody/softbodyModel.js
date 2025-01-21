@@ -33,7 +33,7 @@ export class SoftbodyModel {
         }
 
         for (let i=0; i < tetIds.length; i += 4) {
-            const a = this.vertices[tetIds[i]-1]];
+            const a = this.vertices[tetIds[i]-1];
             const b = this.vertices[tetIds[i+1]-1];
             const c = this.vertices[tetIds[i+2]-1];
             const d = this.vertices[tetIds[i+3]-1];
@@ -85,13 +85,13 @@ export class SoftbodyModel {
             }
         };
 
-        for (let i=0; i<this.tets.length; i++) {
-            const { v0,v1,v2,v3 } = this.tets[i];
+        this.tets.forEach((tet) => {
+            const { v0,v1,v2,v3 } = tet;
             addTriangle(v0, v1, v2, v3);
             addTriangle(v1, v2, v3, v0);
             addTriangle(v2, v3, v0, v1);
             addTriangle(v3, v0, v1, v2);
-        }
+        });
 
         const tangent = new THREE.Vector3();
         const bitangent = new THREE.Vector3();
@@ -115,31 +115,24 @@ export class SoftbodyModel {
             triangles.push([v0,v1,v2]);
         });
 
-        let geometryVertexCount = 0;
-        const vertexIdArray = [];
+        const surfaceVertices = this.vertices.filter(v => v.isSurface);
         const indices = [];
-
-        for (let i=0; i<this.vertices.length; i++) {
-            const vertex = this.vertices[i];
-            if (!vertex.isSurface) { continue; }
-            vertexIdArray.push(vertex.id);
-            vertex.geometryVertexId = geometryVertexCount;
-            geometryVertexCount++;
-        }
-
-        const trianglePtrArray = new Uint32Array(vertexIdArray.length * 2); // x: ptr, y: length
+        const vertexIdArray = new Uint32Array(surfaceVertices.length);
+        const trianglePtrArray = new Uint32Array(surfaceVertices.length * 2); // x: ptr, y: length
         const triangleArray = new Uint32Array(triangles.length * 2 * 3);
+
         let trianglePtr = 0;
-        for (let i=0; i < vertexIdArray.length; i++) {
-            const vertex = this.physics.vertices[vertexIdArray[i]];
-            trianglePtrArray[i * 2 + 0] = trianglePtr;
-            trianglePtrArray[i * 2 + 1] = vertex.triangles.length;
+        surfaceVertices.forEach((vertex,index) => {
+            vertexIdArray[index] = vertex.id;
+            vertex.geometryVertexId = index;
+            trianglePtrArray[index * 2 + 0] = trianglePtr;
+            trianglePtrArray[index * 2 + 1] = vertex.triangles.length;
             vertex.triangles.forEach(([v1,v2]) => {
                 triangleArray[trianglePtr * 2 + 0] = v1.id;
                 triangleArray[trianglePtr * 2 + 1] = v2.id;
                 trianglePtr++;
             });
-        }
+        });
 
         triangles.forEach(triangle => {
            const [v0,v1,v2] = triangle;

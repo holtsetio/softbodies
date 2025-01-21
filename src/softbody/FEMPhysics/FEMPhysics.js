@@ -21,6 +21,7 @@ import {
     Break,
     normalize, Return, uniform, select, time
 } from "three/tsl";
+import {mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
 
 export const RotationToQuaternion = /*#__PURE__*/ Fn( ( [ axis_immutable, angle_immutable ] ) => {
 
@@ -178,13 +179,13 @@ export class FEMPhysics {
         const quats0 = new Array(this.tetCount*4).fill(0.0);
         const restPoses = new Array(this.tetCount*4*4).fill(0);
 
-        for (let i=0; i<this.tetCount; i++) {
-            const { v0, v1, v2, v3 } = this.tets[i];
-            [v0, v1, v2, v3].forEach((vertex,index) => {
-                restPoses[(i*4+index)*4 + 0] = vertex.x;
-                restPoses[(i*4+index)*4 + 1] = vertex.y;
-                restPoses[(i*4+index)*4 + 2] = vertex.z;
-                restPoses[(i*4+index)*4 + 3] = 0;
+        this.tets.forEach((tet,index) => {
+            const { v0, v1, v2, v3 } = tet;
+            [v0, v1, v2, v3].forEach((vertex,subindex) => {
+                restPoses[(index*4+subindex)*4 + 0] = vertex.x;
+                restPoses[(index*4+subindex)*4 + 1] = vertex.y;
+                restPoses[(index*4+subindex)*4 + 2] = vertex.z;
+                restPoses[(index*4+subindex)*4 + 3] = 0;
             });
 
             const e = oldrestingPose.elements;
@@ -203,43 +204,41 @@ export class FEMPhysics {
             invMass[v1.id] += pm;
             invMass[v2.id] += pm;
             invMass[v3.id] += pm;
-            invRestVolume[i] = 1/V;
-            quats0[i*4+0] = 0;
-            quats0[i*4+1] = 0;
-            quats0[i*4+2] = 0;
-            quats0[i*4+3] = 1;
-        }
-        for (let i=0; i<this.vertexCount; i++) {
-            if (invMass[i] !== 0.0) {
-                invMass[i] = 1 / invMass[i];
-            }
-        }
+            invRestVolume[index] = 1/V;
+            quats0[index*4+0] = 0;
+            quats0[index*4+1] = 0;
+            quats0[index*4+2] = 0;
+            quats0[index*4+3] = 1;
+        });
 
         const vertexArray = new Float32Array(this.vertexCount * 3);
         const influencerPtrArray = new Uint32Array(this.vertexCount * 2); // x: ptr, y: length
         const influencerArray = new Uint32Array(this.tetCount * 4);
         let influencerPtr = 0;
-        for (let i=0; i<this.vertexCount; i++) {
-            vertexArray[i*3+0] = this.vertices[i].x * 1.0 + Math.random() * 0.001;
-            vertexArray[i*3+1] = this.vertices[i].y * 1.0 + Math.random() * 0.001;
-            vertexArray[i*3+2] = this.vertices[i].z * 1.0 + Math.random() * 0.001;
-            influencerPtrArray[i * 2 + 0] = influencerPtr;
-            influencerPtrArray[i * 2 + 1] = this.vertices[i].influencers.length;
-            this.vertices[i].influencers.forEach(influencer => {
+        this.vertices.forEach((vertex, index) => {
+            vertexArray[index*3+0] = vertex.x * 1.0;// + Math.random() * 0.001;
+            vertexArray[index*3+1] = vertex.y * 1.0;// + Math.random() * 0.001;
+            vertexArray[index*3+2] = vertex.z * 1.0;// + Math.random() * 0.001;
+            influencerPtrArray[index * 2 + 0] = influencerPtr;
+            influencerPtrArray[index * 2 + 1] = vertex.influencers.length;
+            vertex.influencers.forEach(influencer => {
                 influencerArray[influencerPtr] = influencer;
                 influencerPtr++;
             });
-        }
+            if (invMass[index] !== 0.0) {
+                invMass[index] = 1 / invMass[index];
+            }
+        });
 
 
         const tetArray = new Int32Array(this.tetCount * 4);
-        for (let i=0; i<this.tetCount; i++) {
-            const { v0,v1,v2,v3 } = this.tets[i];
-            tetArray[i*4+0] = v0.id;
-            tetArray[i*4+1] = v1.id;
-            tetArray[i*4+2] = v2.id;
-            tetArray[i*4+3] = v3.id;
-        }
+        this.tets.forEach((tet,index) => {
+            const { v0,v1,v2,v3 } = tet;
+            tetArray[index*4+0] = v0.id;
+            tetArray[index*4+1] = v1.id;
+            tetArray[index*4+2] = v2.id;
+            tetArray[index*4+3] = v3.id;
+        });
 
         const restPosesArray = new Float32Array(restPoses);
         const quatsArray = new Float32Array(quats0);
@@ -354,9 +353,11 @@ export class FEMPhysics {
 
             const gravity = vec3(0,-9.81/10000,0);
             const velocity = this.velocityBuffer.element(instanceIndex).toVar();
-            velocity.mulAssign(0.9808).addAssign(delta.mul(0.99999)).addAssign(gravity);
+
+            velocity.mulAssign(0.980).addAssign(delta.mul(0.99999)).addAssign(gravity);
 
             const projectedPosition = oldPosition.add(velocity);
+            //const noise = mx_perlin_noise_float(vec3(projectedPosition.xz.mul(0.3), this.uniforms.time.mul(0.1)));
             const planePosition = float(-5).add(this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
             If(projectedPosition.y.lessThan(planePosition), () => {
                 velocity.y.subAssign(projectedPosition.y.sub(planePosition));
