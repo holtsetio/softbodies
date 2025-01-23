@@ -13,6 +13,7 @@ import {Fn, normalWorld, pmremTexture, vec3} from "three/tsl";
 import {SoftbodyModel} from "./softbodyModel";
 import {FEMPhysics} from "./FEMPhysics/FEMPhysics";
 import {TetVisualizer} from "./FEMPhysics/tetVisualizer";
+import CollisionGeometry from "./collisionGeometry";
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
@@ -92,11 +93,15 @@ class SoftbodyApp {
             const softbody = new SoftbodyModel(this.physics, new THREE.Vector3(i*3,0,0));
             this.scene.add(softbody.object);
         }
+
+        this.collisionGeometry = new CollisionGeometry(this.physics);
+        this.scene.add(this.collisionGeometry.object);
+
         await this.physics.bake();
 
 
 
-        //this.tetVisualizer = new TetVisualizer(this.physics);
+        this.tetVisualizer = new TetVisualizer(this.physics);
         //this.scene.add(this.tetVisualizer.object);
         /*
         this.collisionGeometry = new CollisionGeometry();

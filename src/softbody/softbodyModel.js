@@ -1,5 +1,4 @@
 import * as THREE from "three/webgpu";
-import * as Dragon from './geometry/dragon';
 import * as Icosphere from './geometry/icosphere';
 import * as Cube from './geometry/cube';
 import * as Torus from './geometry/torus';
@@ -21,14 +20,13 @@ export class SoftbodyModel {
     tets = [];
     constructor(physics, offset = new THREE.Vector3()) {
         this.physics = physics;
-        console.log(Icosphere);
 
-        const { tetVerts, tetIds } = Icosphere;
+        const { tetVerts, tetIds } = Cube;
 
         for (let i=0; i < tetVerts.length; i += 3) {
-            const x = tetVerts[i]*0.2 + offset.x;
-            const y = tetVerts[i+1]*0.2 + offset.y;
-            const z = tetVerts[i+2]*0.2 + offset.z;
+            const x = tetVerts[i]*0.1 + offset.x;
+            const y = tetVerts[i+1]*0.1 + offset.y;
+            const z = tetVerts[i+2]*0.1 + offset.z;
             this.vertices.push(this.physics.addVertex(x,y,z));
         }
 

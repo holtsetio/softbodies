@@ -145,6 +145,8 @@ export class FEMPhysics {
 
     time = 0;
 
+    colliders = [];
+
     constructor(renderer) {
         this.renderer = renderer;
     }
@@ -171,6 +173,10 @@ export class FEMPhysics {
 
     addObject(object) {
         this.objects.push(object);
+    }
+
+    addCollider(collider) {
+        this.colliders.push(collider);
     }
 
     async bake() {
@@ -358,14 +364,19 @@ export class FEMPhysics {
             const currentPosition = this.positionBuffer.element(instanceIndex).toVar();
             const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
 
-            position.assign(mix(position, currentPosition, 0.41));
+            position.assign(mix(position, currentPosition, 0.11));
 
-            const noise = mx_perlin_noise_float(vec3(position.xz.mul(0.1), this.uniforms.time.mul(1.1)));
+            /*const noise = mx_perlin_noise_float(vec3(position.xz.mul(0.1), this.uniforms.time.mul(1.1)));
             const planePosition = float(-5).add(noise.mul(3)); //this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
             If(position.y.lessThan(planePosition), () => {
                 position.y.assign(planePosition);
                 const F = prevPosition.sub(position);
                 position.xz.addAssign(F.xz.mul(min(1.0, dt.mul(1000))));
+            });*/
+
+            this.colliders.forEach((collider) => {
+               const colliderResult = collider(position);
+               position.addAssign(colliderResult.w.min(0).negate().mul(colliderResult.xyz));
             });
 
 
