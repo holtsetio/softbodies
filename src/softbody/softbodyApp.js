@@ -56,7 +56,7 @@ class SoftbodyApp {
     async init(progressCallback) {
         this.time = 0;
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
-        this.camera.position.set(0,0, -5);
+        this.camera.position.set(0,0, -15);
         this.camera.lookAt(0,0,0);
         this.camera.updateProjectionMatrix()
 
@@ -90,7 +90,7 @@ class SoftbodyApp {
         this.physics = new FEMPhysics(this.renderer);
         this.physics.addObject(SoftbodyModel);
         for (let i=0; i<10; i++) {
-            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3(i*3,0,0));
+            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3((Math.random()-0.5)*10,2+Math.random()*2,0));
             this.scene.add(softbody.object);
         }
 

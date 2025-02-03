@@ -364,7 +364,7 @@ export class FEMPhysics {
             const currentPosition = this.positionBuffer.element(instanceIndex).toVar();
             const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
 
-            position.assign(mix(position, currentPosition, 0.11));
+            position.assign(mix(position, currentPosition, 0.0051));
 
             /*const noise = mx_perlin_noise_float(vec3(position.xz.mul(0.1), this.uniforms.time.mul(1.1)));
             const planePosition = float(-5).add(noise.mul(3)); //this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
@@ -374,13 +374,18 @@ export class FEMPhysics {
                 position.xz.addAssign(F.xz.mul(min(1.0, dt.mul(1000))));
             });*/
 
-            this.colliders.forEach((collider) => {
-               const colliderResult = collider(position);
-               position.addAssign(colliderResult.w.min(0).negate().mul(colliderResult.xyz));
-            });
-
-
             const { dt, gravity } = this.uniforms;
+            const F = prevPosition.sub(position);
+            const frictionDir = vec3(0).toVar();
+            this.colliders.forEach((collider) => {
+                const colliderResult = collider(position);
+                const diff = colliderResult.w.min(0).negate().toVar();
+                position.addAssign(diff.mul(colliderResult.xyz));
+                frictionDir.addAssign(colliderResult.xyz.abs().oneMinus().mul(diff.sign()));
+            });
+            position.xyz.addAssign(F.mul(frictionDir).mul(min(1.0, dt.mul(500))));
+
+
             const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.998);
             this.prevPositionBuffer.element(instanceIndex).assign(position);
             const newPosition = position.add(velocity.mul(dt));
