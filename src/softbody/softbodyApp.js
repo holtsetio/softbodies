@@ -90,7 +90,7 @@ class SoftbodyApp {
         this.physics = new FEMPhysics(this.renderer);
         this.physics.addObject(SoftbodyModel);
         for (let i=0; i<10; i++) {
-            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3((Math.random()-0.5)*10,2+Math.random()*2,0));
+            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3((Math.random()-0.5)*10,4+Math.random()*2,0));
             this.scene.add(softbody.object);
         }
 

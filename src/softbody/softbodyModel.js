@@ -21,7 +21,7 @@ export class SoftbodyModel {
     constructor(physics, offset = new THREE.Vector3()) {
         this.physics = physics;
 
-        const { tetVerts, tetIds } = Torus;
+        const { tetVerts, tetIds } = Cube;
         //console.log(tetVerts.map(v=>Math.round(v*10000)/10000));
 
         for (let i=0; i < tetVerts.length; i += 3) {
