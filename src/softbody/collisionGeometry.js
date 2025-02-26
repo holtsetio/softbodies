@@ -19,196 +19,188 @@ import {
     varying, transformNormalToView
 } from "three/tsl";
 import {RoundedBoxGeometry} from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import {Vector3} from "three/webgpu";
 
-class Plane {
-    constructor() {
+import colorMapFile from '../assets/rock_0005_color_1k.jpg';
+import aoMapFile from '../assets/rock_0005_ao_1k.jpg';
+import normalMapFile from '../assets/rock_0005_normal_opengl_1k.png';
+import roughnessMapFile from '../assets/rock_0005_roughness_1k.jpg';
 
-    }
+const textureLoader = new THREE.TextureLoader();
+const loadTexture = (file) => {
+    return new Promise(resolve => {
+        textureLoader.load(file, texture => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            resolve(texture);
+        });
+    });
 }
+
 
 class CollisionGeometry {
     constructor(physics) {
         this.physics = physics;
         this.object = new THREE.Object3D();
-        this.createFloorGeometry();
-        //this.createBoxGeometry();
-
+        //this.createFloorGeometry();
     }
 
-    createCollider() {
-
-    }
-/*
-    createBoxGeometry() {
-        const width = 30;
-        const height = 30;
-
-        const geometry = new RoundedBoxGeometry(width,height,1000,10,5);
-        const material = new THREE.MeshPhysicalNodeMaterial({ color: 0xffffff, side: THREE.BackSide });
-        const box = new THREE.Mesh(geometry, material);
-        this.object.add(box);
-
-    }
-
-    createCapsuleGeometry() {
-        const repeat = 2.5;
-        const radius = 0.5;
-        const geometry = new THREE.CapsuleGeometry( radius, 3, 8, 16 );
-        const material = new THREE.MeshPhysicalNodeMaterial({ color: 0xffffff });
-        const capsule = new THREE.Mesh( geometry, material );
-        capsule.rotation.set(Math.PI * 0.5, 0, 0);
-
-        for (let y = 0; y < 6; y++) {
-            const rowsize = y+1; //y === 0 ? 1 : (y % 2 ? 2 : 3);
-            for (let x = 0; x < rowsize; x++) {
-                const px = ((x*2) - rowsize + 1) * repeat;
-                const py = -y * repeat;
-                const tCapsule = capsule.clone();
-                tCapsule.position.set(px,py,0);
-                this.object.add(tCapsule);
-            }
-        }
-
-        const collider = (positionImmutable) => {
-            const sdCylinder = (p, c, r) => { return length(p.xy.sub(c.xy)).sub(r); }
-            const repeatNode = vec2(repeat*2, repeat);
-            const position = vec3(positionImmutable).toVar();
-            position.y.assign(position.y.clamp(-(repeat * 5 + 1 ), 1));
-            position.x.addAssign(round(position.y.div(repeatNode.y)).mul(repeatNode.x.mul(0.5)));
-            position.xy.assign(mod(position.xy.add(repeatNode.mul(0.5)), repeatNode).sub(repeatNode.mul(0.5)));
-            const dist = sdCylinder(position.xy, vec2(0,0), radius);
-            const normal = vec3(position.xy, 0);
-            return vec4(normal, dist);
-        };
-        this.physics.addCollider(collider);
-
-    }
-*/
-    createFloorGeometry() {
+    async createGeometry() {
+        const [map, aoMap, normalMap, roughnessMap] = await Promise.all([loadTexture(colorMapFile), loadTexture(aoMapFile), loadTexture(normalMapFile), loadTexture(roughnessMapFile)]);
 
         const slope = 0.2;
-
+        const stepLength = 5;
+        const stepHeight = 3;
+        const stepRadius = 0.5;
         const steps = 10;
+
+        const wallBox = new RoundedBoxGeometry( 0.6, 20,  stepLength * 1.2, 4, 0.1);
+        const wallMaterial = new THREE.MeshPhysicalNodeMaterial( { map,aoMap,roughnessMap,normalMap } );
+        const wallMesh = new THREE.BatchedMesh( steps * 2, 24000, 36000, wallMaterial );
+        wallMesh.castShadow = true;
+        wallMesh.perObjectFrustumCulled = false;
+        //wallMesh.receiveShadow = true;
+        const wallGeometryId = wallMesh.addGeometry(wallBox);
+        this.object.add(wallMesh);
+
         const positionArray = [];
-        const sideArray = [];
-        const stepArray = [];
+        const normalArray = [];
+        const uvArray = [];
+        const uvFactor = 0.1;
         const indices = [];
+
+        const vertexRows = [];
         let vertexId = 0;
 
-        for (let i=0; i<steps; i++) {
-            for (let x = 0; x<2;x++) {
-                for (let y = 0; y<2;y++) {
-                    const px = x * 2 - 1;
-                    const py = 0;
-                    const pz = y;
-                    positionArray.push(pz,py,px);
-                    sideArray.push(1);
-                    stepArray.push(i);
-                    vertexId++;
-                }
-            }
-            indices.push(vertexId - 3, vertexId - 2, vertexId - 1);
-            indices.push(vertexId - 2, vertexId - 3, vertexId - 4);
+        const beginAngle = Math.atan(slope);
+        const radiusResolution = 6;
+        let uvy = 0;
 
-            for (let x = 0; x<2;x++) {
-                for (let y = 0; y<2;y++) {
-                    const px = x * 2 - 1;
-                    const py = y;
-                    const pz = 1;
-                    positionArray.push(pz,py,px);
-                    sideArray.push(0);
-                    stepArray.push(i);
-                    vertexId++;
+        const transformUv = (x,y) => {
+            const r = new THREE.Vector2(x*uvFactor, y*uvFactor).rotateAround(new THREE.Vector2(), 0.6);
+            return [r.x,r.y];
+        };
+
+        {
+            const row = [];
+            for (let x = 0; x < 2; x++) {
+                const px = (x * 2 - 1) * 10;
+                const py = 0;
+                const pz = 0;
+                positionArray.push(px, -py, -pz);
+                normalArray.push(0, Math.cos(beginAngle), Math.sin(beginAngle));
+                uvArray.push(...transformUv(px, 0));
+                row.push(vertexId);
+                vertexId++;
+            }
+            vertexRows.push(row);
+            uvy += Math.cos(beginAngle) * (stepLength - stepRadius);
+        }
+        for (let i=0; i<steps; i++) {
+            uvy += Math.cos(beginAngle) * (stepLength - stepRadius * 2);
+            {
+                const pivotx = (i + 1) * stepLength - stepRadius;
+                const pivoty = i * stepHeight + (slope * stepLength) + (Math.cos(beginAngle) - Math.sin(beginAngle)) * stepRadius;
+                for (let j = 0; j<radiusResolution; j++) {
+                    const angle = beginAngle + (j / (radiusResolution - 1)) * (Math.PI * 0.5 - beginAngle);
+                    const row = [];
+                    for (let x = 0; x<2;x++) {
+                        const px = (x * 2 - 1) * 10;
+                        const py = pivoty - Math.cos(angle) * stepRadius;
+                        const pz = pivotx + Math.sin(angle) * stepRadius;
+                        positionArray.push(px,-py,pz);
+                        normalArray.push(0, Math.cos(angle), Math.sin(angle));
+                        uvArray.push(...transformUv(px, uvy));
+                        row.push(vertexId);
+                        vertexId++;
+                    }
+                    vertexRows.push(row);
+                    uvy += ((Math.PI * 0.5 - beginAngle) * stepRadius) / (radiusResolution-1);
+                }
+
+            }
+            uvy += (stepHeight - slope * stepLength) - Math.cos(beginAngle) * stepRadius * 2;
+            {
+                const pivotx = (i + 1) * stepLength + stepRadius;
+                const pivoty = (i + 1) * stepHeight - (Math.cos(beginAngle) - Math.sin(beginAngle)) * stepRadius;
+                for (let j = 0; j<radiusResolution; j++) {
+                    const angle = (-Math.PI*0.5) - (j / (radiusResolution - 1)) * (Math.PI * 0.5 - beginAngle);
+                    const row = [];
+                    for (let x = 0; x<2;x++) {
+                        const px = (x * 2 - 1) * 10;
+                        const py = pivoty - Math.cos(angle) * stepRadius;
+                        const pz = pivotx + Math.sin(angle) * stepRadius;
+                        positionArray.push(px,-py,pz);
+                        normalArray.push(0, -Math.cos(angle), -Math.sin(angle));
+                        uvArray.push(...transformUv(px, uvy));
+                        row.push(vertexId);
+                        vertexId++;
+                    }
+                    vertexRows.push(row);
+                    uvy += ((Math.PI * 0.5 - beginAngle) * stepRadius) / (radiusResolution-1);
                 }
             }
-            indices.push(vertexId - 3, vertexId - 2, vertexId - 1);
-            indices.push(vertexId - 2, vertexId - 3, vertexId - 4);
+
+            const boxInstancedId1 = wallMesh.addInstance(wallGeometryId);
+            const boxInstancedId2 = wallMesh.addInstance(wallGeometryId);
+            const matrix = new THREE.Matrix4().setPosition(-10, -(9 + i * stepHeight), (i + 0.5) * stepLength);
+            wallMesh.setMatrixAt(boxInstancedId1, matrix);
+            matrix.setPosition(10, -(9 + i * stepHeight), (i + 0.5) * stepLength);
+            wallMesh.setMatrixAt(boxInstancedId2, matrix);
+
+        }
+
+        for (let y = 1; y<vertexRows.length; y++) {
+            for (let x = 1; x<vertexRows[y].length; x++) {
+                const a = vertexRows[y-1][x-1];
+                const b = vertexRows[y-1][x];
+                const c = vertexRows[y][x-1];
+                const d = vertexRows[y][x];
+                indices.push(c,b,a);
+                indices.push(b,c,d);
+            }
         }
         const positionBuffer = new THREE.BufferAttribute(new Float32Array(positionArray), 3, false);
-        const sideBuffer = new THREE.BufferAttribute(new Float32Array(sideArray), 1, false);
-        const stepBuffer = new THREE.BufferAttribute(new Float32Array(stepArray), 1, false);
+        const normalBuffer = new THREE.BufferAttribute(new Float32Array(normalArray), 3, false);
+        const uvBuffer = new THREE.BufferAttribute(new Float32Array(uvArray), 2, false);
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', positionBuffer);
-        geometry.setAttribute('side', sideBuffer);
-        geometry.setAttribute('step', stepBuffer);
+        geometry.setAttribute('normal', normalBuffer);
+        geometry.setAttribute('uv', uvBuffer);
         geometry.setIndex(indices);
 
-        const material = new THREE.MeshPhysicalNodeMaterial({ color: 0xffffff });
 
-        const vNormal = varying(vec3(0), "v_normalView");
-        material.positionNode = Fn(() => {
-            const stepSize = vec4(5, -3, 30, 1);
-            const position = attribute('position').xyz;
-            const step = attribute('step');
-            const side = attribute('side');
-            const result = position.xyz.mul(stepSize.xyz).toVar();
-            result.xy.addAssign(stepSize.xy.mul(step));
-            result.y.subAssign(position.x.mul(position.y.oneMinus()));
-
-            const normal = vec3(side.mul(slope).add(side.oneMinus()), side, 0).normalize();
-            vNormal.assign(transformNormalToView(normal));
-            return result;
-        })();
-
-        material.normalNode = vNormal.normalize();
+        const material = new THREE.MeshPhysicalNodeMaterial({ map,aoMap,roughnessMap, normalMap });
 
 
         const floor = new THREE.Mesh(geometry, material);
+        floor.receiveShadow = true;
         floor.frustumCulled = false;
         this.object.add(floor);
 
+        /*const ball = new THREE.Mesh(new THREE.SphereGeometry(1), material);
+        ball.position.set(0,5,8);
+        ball.castShadow = true;
+        this.object.add(ball);*/
+
         const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
-            const posXDiv = position.x.mul(0.2);
-            const posXFloor = posXDiv.floor();
-            const floorPosition = float(0.0).sub(posXFloor.mul(2.0)).toVar();
-            const normal = vec3(slope, 1, 0).normalize().toVar();
-            const dist = position.y.sub(position.x.mul(slope).negate().add(floorPosition)).toVar();
+            const posZDiv = position.z.mul(0.2);
+            const posZFloor = posZDiv.floor();
+            const floorPosition = float(0.0).sub(posZFloor.mul(2.0)).toVar();
+            const normal = vec3(0, 1, slope).normalize().toVar();
+            const dist = position.y.sub(position.z.mul(slope).negate().add(floorPosition)).toVar();
 
             If( dist.lessThan( 0.0 ), () => {
-                const wallDist = float(1).sub(posXDiv.sub(posXFloor)).negate().mul(2.0);
+                const wallDist = float(1).sub(posZDiv.sub(posZFloor)).negate().mul(2.0);
                 If( wallDist.lessThan( 0.0 ).and( wallDist.greaterThan( dist ) ), () => {
                     dist.assign(wallDist);
-                    normal.assign( vec3(1,0,0) );
+                    normal.assign( vec3(0,0,1) );
                 } );
             } );
 
             return vec4( normal, dist );
-        };
-        this.physics.addCollider(collider);
-    }
-
-    createWallGeometry() {
-        const wallPosition = 20;
-        /*const geometry = new THREE.PlaneGeometry(100,100,1,1);
-        const material = new THREE.MeshPhysicalNodeMaterial({ color: 0xffffff });
-        const floor = new THREE.Mesh(geometry, material);
-        floor.rotation.set(-Math.PI * 0.5, 0, 0);
-        floor.position.setY(floorPosition);*/
-
-        const collider = (positionImmutable) => {
-            /*const dist = positionImmutable.y.sub(floorPosition);
-            const normal = vec3(0,1,0).normalize();
-            return vec4(normal, dist);*/
-            const normal = vec3(positionImmutable.x.sign().negate(),0,0);
-            const dist = positionImmutable.x.abs().sub(wallPosition).negate();
-            return vec4(normal, dist);
-        };
-        this.physics.addCollider(collider);
-
-        //this.object.add(floor);
-    }
-
-    createZWallGeometry() {
-        const wallPosition = 2;
-        const collider = (positionImmutable) => {
-            /*const dist = positionImmutable.y.sub(floorPosition);
-            const normal = vec3(0,1,0).normalize();
-            return vec4(normal, dist);*/
-            const normal = vec3(0,0,positionImmutable.z.sign().negate());
-            const dist = positionImmutable.z.abs().sub(wallPosition).negate();
-            return vec4(normal, dist);
         };
         this.physics.addCollider(collider);
     }

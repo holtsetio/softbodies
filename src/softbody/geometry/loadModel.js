@@ -1,0 +1,142 @@
+import * as THREE from "three/webgpu";
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {OBJLoader} from "three/examples/jsm/loaders/OBJLoader";
+
+const processMsh = (msh) => {
+    const vertexRegex = /\$Nodes\n\d+\n(.+)\$EndNodes/gms;
+    const vertexMatch = vertexRegex.exec(msh);
+    const vertexRepRegex = /\d+\s(.+)\n/gm;
+    const tetVerts = vertexMatch['1'].replace(vertexRepRegex, '$1 ').trim().split(' ').map(v => Number(v)).map(v=>Math.round(v*10000)/10000);
+
+    const tetRegex = /\$Elements\n\d+\n(.+)\$EndElements/gms;
+    const tetMatch = tetRegex.exec(msh);
+    const tetRepRegex = /.+(\s\d+\s\d+\s\d+\s\d+)\s\n/gm;
+    const tetIds = tetMatch['1'].replace(tetRepRegex, '$1').trim().split(' ').map(v => Number(v));
+
+    let vertices = [];
+    let tets = [];
+    const addVertex = (x,y,z) => {
+        const id = vertices.length;
+        const vertex = new THREE.Vector3(Number(x),Number(y),Number(z));
+        vertex.id = id;
+        vertices.push(vertex);
+    }
+
+    const addTet = (v0,v1,v2,v3) => {
+        const id = tets.length;
+        const center = v0.clone().add(v1).add(v2).add(v3).divideScalar(4);
+        const tet = {id,v0,v1,v2,v3,center};
+        tets.push(tet);
+    }
+
+
+    for (let i=0; i < tetVerts.length; i += 3) {
+        const x = tetVerts[i];
+        const y = tetVerts[i+1];
+        const z = tetVerts[i+2];
+        addVertex(x,y,z);
+    }
+
+    for (let i=0; i < tetIds.length; i += 4) {
+        const a = vertices[tetIds[i]-1];
+        const b = vertices[tetIds[i+1]-1];
+        const c = vertices[tetIds[i+2]-1];
+        const d = vertices[tetIds[i+3]-1];
+        addTet(a,b,c,d);
+    }
+
+    return { tetVerts, tetIds, vertices, tets };
+}
+
+
+const processObj = (obj, tets) => {
+    const objectRaw = new OBJLoader().parse(obj);
+    const geometry = BufferGeometryUtils.mergeVertices(objectRaw.children[0].geometry);
+
+    const positionAttribute = geometry.getAttribute("position");
+    const vertexCount = positionAttribute.count;
+    const positionArray = positionAttribute.array;
+    const normalArray = geometry.getAttribute("normal").array;
+    const uvArray = geometry.getAttribute("uv").array;
+    const indexArray = geometry.index.array;
+
+    const tetIdArray = new Uint32Array(vertexCount);
+    //const vertexIdArray = new Uint32Array(vertexCount*4);
+    const tetBaryCoordsArray = new Float32Array(vertexCount * 3);
+
+    const findClosestTet = (vertex) => {
+        let minDist = 1e9;
+        let closestTet = null;
+        for (let i=0; i<tets.length; i++) {
+            const tet = tets[i];
+            const dist = vertex.distanceTo(tet.center);
+            if (dist < minDist) {
+                minDist = dist;
+                closestTet = tet;
+            }
+        }
+        return closestTet;
+    }
+
+    const getMatrixInverse = (tet) => {
+        const { v0,v1,v2,v3 } = tet;
+        const a = v1.clone().sub(v0);
+        const b = v2.clone().sub(v0);
+        const c = v3.clone().sub(v0);
+        const matrix = new THREE.Matrix3(a.x,b.x,c.x,a.y,b.y,c.y,a.z,b.z,c.z);
+        return matrix.clone().invert();
+    }
+
+    for (let i=0; i<vertexCount; i++) {
+        const x = positionArray[i*3+0];
+        const y = positionArray[i*3+1];
+        const z = positionArray[i*3+2];
+        const vertex = new THREE.Vector3(x,y,z);
+        const closestTet = findClosestTet(vertex);
+        tetIdArray[i] = closestTet.id;
+        /*vertexIdArray[i*4+0] = closestTet.v0.id;
+        vertexIdArray[i*4+1] = closestTet.v1.id;
+        vertexIdArray[i*4+2] = closestTet.v2.id;
+        vertexIdArray[i*4+3] = closestTet.v3.id;*/
+        const baryCoords = vertex.clone().sub(closestTet.v0).applyMatrix3(getMatrixInverse(closestTet));
+        tetBaryCoordsArray[i * 3 + 0] = baryCoords.x;
+        tetBaryCoordsArray[i * 3 + 1] = baryCoords.y;
+        tetBaryCoordsArray[i * 3 + 2] = baryCoords.z;
+    }
+    /*const tetIdBuffer = new THREE.BufferAttribute(tetIdArray, 1, false);
+    const vertexIdsBuffer = new THREE.BufferAttribute(vertexIdArray, 4, false);
+    const tetBaryCoordsBuffer = new THREE.BufferAttribute(tetBaryCoordsArray, 3, false);
+    geometry.setAttribute("tetId", tetIdBuffer);
+    geometry.setAttribute("vertexIds", vertexIdsBuffer);
+    geometry.setAttribute("tetBaryCoords", tetBaryCoordsBuffer);*/
+    //obj.children[0].geometry.computeVertexNormals();
+
+    const processedModel = {
+        attachedTets: [...tetIdArray],
+        baryCoords: [...tetBaryCoordsArray].map(v=>Math.round(v*10000)/10000),
+        positions: [...positionArray].map(v=>Math.round(v*10000)/10000),
+        normals: [...normalArray].map(v=>Math.round(v*10000)/10000),
+        uvs: [...uvArray].map(v=>Math.round(v*10000)/10000),
+        indices: [...indexArray],
+    };
+    return processedModel;
+};
+
+const print = (model) => {
+    let str = "export default model = { \n";
+    Object.keys(model).forEach((key) => {
+        str += " " + key + ": [";
+        str += model[key].join(",")
+        str += "],\n"
+    });
+    str += "}";
+    console.log(str);
+}
+
+export const loadModel = (msh, obj) => {
+    const { tetVerts, tetIds, vertices, tets } = processMsh(msh);
+    const { attachedTets, baryCoords, normals, uvs, positions, indices} = processObj(obj, tets);
+    const model = { tetVerts, tetIds, attachedTets, baryCoords, normals, uvs, positions, indices };
+    print(model);
+    return model;
+};

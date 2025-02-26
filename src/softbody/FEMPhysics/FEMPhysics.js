@@ -145,6 +145,8 @@ export class FEMPhysics {
 
     time = 0;
 
+    timeSinceLastStep = 0;
+
     colliders = [];
 
     constructor(renderer) {
@@ -153,7 +155,10 @@ export class FEMPhysics {
 
     addVertex(x,y,z) {
         const id = this.vertexCount;
-        const vertex = {x,y,z,id,influencers: [], triangles: []};
+        const vertex = new THREE.Vector3(x,y,z);
+        vertex.id = id;
+        vertex.influencers = [];
+        vertex.triangles = [];
         this.vertices.push(vertex);
         this.vertexCount++;
         return vertex;
@@ -364,7 +369,7 @@ export class FEMPhysics {
             const currentPosition = this.positionBuffer.element(instanceIndex).toVar();
             const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
 
-            position.assign(mix(position, currentPosition, 0.0051));
+            //position.assign(mix(position, currentPosition, 0.51));
 
             /*const noise = mx_perlin_noise_float(vec3(position.xz.mul(0.1), this.uniforms.time.mul(1.1)));
             const planePosition = float(-5).add(noise.mul(3)); //this.uniforms.time.mul(2).mod(6.0)); //sin(this.uniforms.time.mul(3)).mul(2.5).sub(5.5);
@@ -383,10 +388,10 @@ export class FEMPhysics {
                 position.addAssign(diff.mul(colliderResult.xyz));
                 frictionDir.addAssign(colliderResult.xyz.abs().oneMinus().mul(diff.sign()));
             });
-            position.xyz.addAssign(F.mul(frictionDir).mul(min(1.0, dt.mul(500))));
+            position.xyz.addAssign(F.mul(frictionDir).mul(min(1.0, dt.mul(100))));
 
 
-            const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.998);
+            const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.999);
             this.prevPositionBuffer.element(instanceIndex).assign(position);
             const newPosition = position.add(velocity.mul(dt));
             this.positionBuffer.element(instanceIndex).assign(newPosition);
@@ -397,13 +402,17 @@ export class FEMPhysics {
     }
 
     async update(interval, elapsed) {
-        interval = Math.min(interval, 1/60);
-        const steps = 5;
-        const dt = Math.max(0.000001, interval / steps);
+        const stepsPerSecond = 300;
+        const timePerStep = 1 / stepsPerSecond;
 
-        this.uniforms.dt.value = dt;
-        for (let i=0; i<steps; i++) {
-            this.time += dt;
+        interval = Math.max(Math.min(interval, 1/60), 0.0001);
+        this.uniforms.dt.value = timePerStep;
+
+        this.timeSinceLastStep += interval;
+
+        while (this.timeSinceLastStep >= timePerStep) {
+            this.time += timePerStep;
+            this.timeSinceLastStep -= timePerStep;
             this.uniforms.time.value = this.time;
             await this.renderer.computeAsync(this.kernels.solveElemPass);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
