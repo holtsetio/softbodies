@@ -9,7 +9,7 @@ import {Lights} from "./lights";
 //import hdrjpg from "../assets/clear_sky_afternoon_sky_dome_2k.jpg";
 import hdri from "../assets/syferfontein_1d_clear_puresky_1k.hdr";
 
-import {Fn, normalWorld, pmremTexture, vec3} from "three/tsl";
+import {Fn, fog, normalWorld, pmremTexture, rangeFogFactor, vec3} from "three/tsl";
 import {SoftbodyModel} from "./softbodyModel";
 import {FEMPhysics} from "./FEMPhysics/FEMPhysics";
 import {TetVisualizer} from "./FEMPhysics/tetVisualizer";
@@ -31,23 +31,19 @@ class SoftbodyApp {
 
     controls = null;
 
-    bloomEnabled = false;
-
     lights = null;
 
     stats = null;
 
-    bloomPass = null;
-
-    composer = null;
-
     physics = null;
 
-    cloth = null;
+    softbodies = [];
 
-    vertexVisualizer = null;
+    softbodyCount = 15;
 
-    springVisualizer = null;
+    currentSoftbody = 0;
+
+    lastSoftbody = 0;
 
     constructor(renderer) {
         this.renderer = renderer;
@@ -56,7 +52,7 @@ class SoftbodyApp {
     async init(progressCallback) {
         this.time = 0;
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
-        this.camera.position.set(0,0, 15);
+        this.camera.position.set(-30,10, 27);
         this.camera.lookAt(0,0,0);
         this.camera.updateProjectionMatrix()
 
@@ -68,9 +64,10 @@ class SoftbodyApp {
         await progressCallback(0.1)
 
         const hdriTexture = await loadHdr(hdri);
-        //this.scene.environment = hdriTexture;
+        //this.scene.environment = hdriTexture;d
         this.scene.backgroundNode = pmremTexture(hdriTexture, normalWorld);
-        this.scene.environmentNode = pmremTexture(hdriTexture, normalWorld).mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
+        this.scene.environmentNode = pmremTexture(hdriTexture, normalWorld); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
+        //this.scene.fogNode = Fn(() => { return fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(30,50)); })() ; //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
         //this.scene.backgroundBlurriness = 0.1;
         //this.scene.backgroundRotation.set(0, Math.PI, 0);
         //this.scene.environmentRotation.set(0, Math.PI, 0);
@@ -90,14 +87,17 @@ class SoftbodyApp {
         //this.physics.addObject(SoftbodyModel);
         await SoftbodyModel.loadTextures();
         await SoftbodyModel.createMaterial(this.physics);
-        for (let i=0; i<5; i++) {
-            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3((i/2-0.5)*10,4+Math.random()*2,1 + Math.random()));
+        for (let i=0; i<this.softbodyCount; i++) {
+            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3(0, 0, 0));
             this.scene.add(softbody.object);
+            this.softbodies.push(softbody);
         }
 
         this.collisionGeometry = new CollisionGeometry(this.physics);
         await this.collisionGeometry.createGeometry();
         this.scene.add(this.collisionGeometry.object);
+
+        this.collisionGeometry.floor.material.fogNode = fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(10,50)); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
 
         await this.physics.bake();
 
@@ -105,50 +105,25 @@ class SoftbodyApp {
 
         this.tetVisualizer = new TetVisualizer(this.physics);
         //this.scene.add(this.tetVisualizer.object);
-        /*
-        this.collisionGeometry = new CollisionGeometry();
-        this.scene.add(this.collisionGeometry.object);
-
-        this.physics = new VerletPhysics(this.renderer);
-        this.physics.addObject(this.collisionGeometry);
-        this.physics.addForceModifier(this.collisionGeometry.forceModifier);
-
-        this.blob = new SoftbodyBlob(this.physics);
-
-        await this.physics.bake();*/
-
-
-        /*this.cloth = new Cloth(this.physics, w, h);
-        this.cloth.setCamera(this.camera);
-        await this.cloth.init();
-        this.scene.add(this.cloth.object);*/
-        //this.cloth.object.rotation.set(0,Math.PI * 0.5, 0);
-
-        /*this.vertexVisualizer = new VertexVisualizer(this.physics);
-        this.scene.add(this.vertexVisualizer.object);
-        this.springVisualizer = new SpringVisualizer(this.physics);
-        this.scene.add(this.springVisualizer.object);*/
-
-        //this.scene.add(this.physics.collisionGeometry.object);
-        //this.physics.collisionGeometry.setCamera(this.camera);
-
-        /*const sphereGeometry = new THREE.SphereGeometry(0.8);
-        this.sphere = new THREE.Mesh(sphereGeometry, new THREE.MeshStandardMaterial());
-        this.scene.add(this.sphere);*/
-
-        /*this.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.1, 0.4, 0.0);
-        const renderScene = new RenderPass(this.scene, this.camera);
-        this.composer = new EffectComposer(this.renderer);
-        this.composer.addPass(renderScene);*/
 
         this.stats = new Stats();
         this.stats.showPanel(0); // Panel 0 = fps
         this.stats.domElement.style.cssText = "position:absolute;top:0px;left:0px;";
         this.renderer.domElement.parentElement.appendChild(this.stats.domElement);
 
-        //this.renderer.domElement.addEventListener("pointermove", (event) => { this.physics.collisionGeometry.onMouseMove(event); });
+        this.raycaster = new THREE.Raycaster();
+        this.renderer.domElement.addEventListener("pointerdown", (event) => { this.onPointerDown(event); });
 
         await progressCallback(1.0, 100);
+    }
+
+    async onPointerDown(event) {
+        const pointer = new THREE.Vector2();
+        pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+        pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        this.raycaster.setFromCamera(pointer, this.camera);
+        await this.physics.onPointerDown(this.camera.position, this.raycaster.ray.direction);
+        //Medusa.setMouseRay(this.raycaster.ray.direction);
     }
 
     resize(width, height) {
@@ -157,10 +132,21 @@ class SoftbodyApp {
     }
 
     async update(delta, elapsed) {
+        //console.log(this.camera.position);
         conf.update();
         this.controls.update(delta);
         this.stats.update();
         this.time += 0.01666;
+
+        this.lastSoftbody += delta;
+        if (this.lastSoftbody > 1.0) {
+            this.lastSoftbody = Math.random() * -1.0;
+            await this.softbodies[this.currentSoftbody].reset();
+            this.currentSoftbody++;
+            if (this.currentSoftbody >= this.softbodyCount) {
+                this.currentSoftbody = 0;
+            }
+        }
         //this.cloth.update();
         this.lights.update(elapsed);
         await this.physics.update(delta, elapsed);

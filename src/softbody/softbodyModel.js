@@ -64,10 +64,11 @@ export class SoftbodyModel {
     physics = null;
     vertices = [];
     tets = [];
-    scaleFactor = 1;
-    constructor(physics, offset = new THREE.Vector3()) {
+    age = 0;
+    constructor(physics) {
         this.physics = physics;
-        this.offset = offset.clone();
+
+        this.id = this.physics.addObject(this);
 
         //const { tetVerts, tetIds } = Cube;
         const model = virus; //loadModel(virusModel, virusObj);
@@ -81,25 +82,24 @@ export class SoftbodyModel {
 
         this.object = new THREE.Object3D();
 
-        this.physics.addObject(this);
-
         //this.createGeometry(virusObj);
     }
 
     createTetrahedralGeometry(model) {
         const { tetVerts, tetIds } = model;
         for (let i=0; i < tetVerts.length; i += 3) {
-            const x = tetVerts[i]*this.scaleFactor + this.offset.x;
-            const y = tetVerts[i+1]*this.scaleFactor + this.offset.y;
-            const z = tetVerts[i+2]*this.scaleFactor + this.offset.z;
-            this.vertices.push(this.physics.addVertex(x,y,z));
+            const x = tetVerts[i];
+            const y = tetVerts[i+1];
+            const z = tetVerts[i+2];
+            const vertex = this.physics.addVertex(this.id,x,y,z);
+            this.vertices.push(vertex);
         }
         for (let i=0; i < tetIds.length; i += 4) {
             const a = this.vertices[tetIds[i]-1];
             const b = this.vertices[tetIds[i+1]-1];
             const c = this.vertices[tetIds[i+2]-1];
             const d = this.vertices[tetIds[i+3]-1];
-            this.tets.push(this.physics.addTet(a,b,c,d));
+            this.tets.push(this.physics.addTet(this.id,a,b,c,d));
         }
     }
 
@@ -276,6 +276,20 @@ export class SoftbodyModel {
         this.implicitMaterial.normalNode = vNormal.normalize();
     }*/
 
+    async reset() {
+        const scale = 1.0 + Math.random() * 2;
+        const position = new THREE.Vector3((Math.random() - 0.5) * 50, 3 + 2 * scale + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
+        position.z -= 5 * 5;
+        position.y += 5 * 3;
+        const velocity = new THREE.Vector3(0,-0.005,0.03);
+        await this.physics.resetObject(this.id, position, scale, velocity);
+        this.age = 0;
+    }
+
+    async update(interval) {
+        this.age += interval;
+    }
+
     async bake() {
         //this.createImplicitGeometry();
         this.createMesh();
@@ -296,8 +310,10 @@ export class SoftbodyModel {
         });
 
         const vNormal = varying(vec3(0), "v_normalView");
+        const vDistance = varying(float(0), "v_distance");
         material.positionNode = Fn(() => {
             const tetId = attribute("tetId");
+
             const vertexIds = attribute("vertexIds");
             const baryCoords = attribute("tetBaryCoords");
             const v0 = physics.positionBuffer.element(vertexIds.x).xyz.toVar();
@@ -307,29 +323,35 @@ export class SoftbodyModel {
             const quat = physics.quatsBuffer.element(tetId);
 
             const normal = Rotate(attribute("normal"), quat);
-            //const normal = attribute("normal");
             vNormal.assign(transformNormalToView(normal));
-            //vNormal.assign(normal);
+            vDistance.assign(attribute("position").length());
 
             const a = v1.sub(v0).mul(baryCoords.x);
             const b = v2.sub(v0).mul(baryCoords.y);
             const c = v3.sub(v0).mul(baryCoords.z);
-            const position = a.add(b).add(c).add(v0);
+            const position = a.add(b).add(c).add(v0).toVar();
+
+            const objectId = physics.tetObjectIdBuffer.element(tetId).toVar();
+            //const centerVertex = 0; //physics.uniforms.centerVertices.element(objectId).toVar();
+            //const centerPosInitial = physics.initialPositionBuffer.element(centerVertex).xyz.toVar();
+            //const centerPos = physics.positionBuffer.element(centerVertex).xyz.toVar();
+            const positionInitial = attribute("position"); //physics.initialPositionBuffer.element(vertexIds.x).xyz.toVar();
+            const offset = position.sub(positionInitial).toVar();
+            const scale = physics.uniforms.scales.element(objectId).toVar();
+
+            position.assign(position.sub(offset).mul(scale).add(offset));
             return position;
         })();
         material.colorNode = Fn(() => {
-            const inner = vec3(0.0,0.0,0.0);
-            const outer = vec3(1,0,1).mul(0.05);
-            return mix(inner, outer, smoothstep(1.3,1.7, attribute("position").length()));
+            return vec3(0.5,0,0.5).mul(0.05);
         })();
         material.emissiveNode = Fn(() => {
-            return dot(vec3(0,0,1), normalView).max(0).pow(4).mul(vec3(1,0,0.5)).mul(mix(0.0, 1.0, smoothstep(1.3,1.6, attribute("position").length())));
-            const inner = vec3(0,0,0);
-            const outer = vec3(1,0,1).mul(0.3);
-            return mix(inner, outer, smoothstep(1.5,1.6, attribute("position").length()));
+            const dp = dot(vec3(0,0,1), normalView).max(0).pow(4);
+            const color = vec3(1,0,0.5);
+            const of = mix(0.0, 1.0, smoothstep(1.3,1.6, vDistance));
+            return dp.mul(of).mul(color);
         })();
-        //material.fragmentNode = vNormal.sign();
-        //material.normalNode = vNormal.normalize();
+
         SoftbodyModel.material = material;
     }
 

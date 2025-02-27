@@ -19,7 +19,7 @@ import {
     If,
     Loop,
     Break,
-    normalize, Return, uniform, select, time, mix, min
+    normalize, Return, uniform, select, time, mix, min, uniformArray
 } from "three/tsl";
 import {mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
 
@@ -133,6 +133,8 @@ export class FEMPhysics {
 
     objects = [];
 
+    objectData = [];
+
     vertexCount = 0;
 
     tetCount = 0;
@@ -153,31 +155,52 @@ export class FEMPhysics {
         this.renderer = renderer;
     }
 
-    addVertex(x,y,z) {
+    addVertex(objectId,x,y,z) {
         const id = this.vertexCount;
         const vertex = new THREE.Vector3(x,y,z);
         vertex.id = id;
+        vertex.objectId = objectId;
         vertex.influencers = [];
         vertex.triangles = [];
         this.vertices.push(vertex);
+
+        const objectDataElement = this.objectData[objectId];
+        const distance = vertex.length();
+        if (distance < objectDataElement.centerVertexDistance) {
+            objectDataElement.centerVertexDistance = distance;
+            objectDataElement.centerVertex = vertex;
+        }
+
+        objectDataElement.vertexCount++;
         this.vertexCount++;
         return vertex;
     }
 
-    addTet(v0,v1,v2,v3) {
+    addTet(objectId,v0,v1,v2,v3) {
         const id = this.tetCount;
-        const tet = {id,v0,v1,v2,v3};
+        const tet = {id,v0,v1,v2,v3,objectId};
         this.tets.push(tet);
         v0.influencers.push(id * 4 + 0);
         v1.influencers.push(id * 4 + 1);
         v2.influencers.push(id * 4 + 2);
         v3.influencers.push(id * 4 + 3);
+        this.objectData[objectId].tetCount++;
         this.tetCount++;
         return tet;
     }
 
     addObject(object) {
+        const id = this.objects.length;
         this.objects.push(object);
+        this.objectData.push({
+            centerVertexDistance: 1e9,
+            centerVertex: null,
+            tetStart: this.tetCount,
+            tetCount: 0,
+            vertexStart: this.vertexCount,
+            vertexCount: 0,
+        });
+        return id;
     }
 
     addCollider(collider) {
@@ -188,19 +211,20 @@ export class FEMPhysics {
         console.log(this.vertexCount + " vertices");
         console.log(this.tetCount + " tetrahedrons");
         const oldrestingPose = new THREE.Matrix3();
-        const invRestVolume = new Array(this.tetCount).fill(0);
-        const invMass = new Array(this.vertexCount).fill(0.0);
-        const vel0 = new Array(this.vertexCount*3).fill(0.0);
-        const quats0 = new Array(this.tetCount*4).fill(0.0);
-        const restPoses = new Array(this.tetCount*4*4).fill(0);
+        const restVolumeArray = new Float32Array(this.tetCount);
+        const invMassArray = new Float32Array(this.vertexCount);
+        const quatsArray = new Float32Array(this.tetCount*4);
+        const restPosesArray = new Float32Array(this.tetCount*4*4);
+        const tetObjectIdArray = new Uint32Array(this.tetCount);
+        const vertexObjectIdArray = new Uint32Array(this.vertexCount);
 
         this.tets.forEach((tet,index) => {
             const { v0, v1, v2, v3 } = tet;
             [v0, v1, v2, v3].forEach((vertex,subindex) => {
-                restPoses[(index*4+subindex)*4 + 0] = vertex.x;
-                restPoses[(index*4+subindex)*4 + 1] = vertex.y;
-                restPoses[(index*4+subindex)*4 + 2] = vertex.z;
-                restPoses[(index*4+subindex)*4 + 3] = 0;
+                restPosesArray[(index*4+subindex)*4 + 0] = vertex.x;
+                restPosesArray[(index*4+subindex)*4 + 1] = vertex.y;
+                restPosesArray[(index*4+subindex)*4 + 2] = vertex.z;
+                restPosesArray[(index*4+subindex)*4 + 3] = 0;
             });
 
             const e = oldrestingPose.elements;
@@ -215,15 +239,16 @@ export class FEMPhysics {
             e[8] = v3.z - v0.z;
             const V = oldrestingPose.determinant() / 6;
             let pm = V / 4.0 * this.density;
-            invMass[v0.id] += pm;
-            invMass[v1.id] += pm;
-            invMass[v2.id] += pm;
-            invMass[v3.id] += pm;
-            invRestVolume[index] = 1/V;
-            quats0[index*4+0] = 0;
-            quats0[index*4+1] = 0;
-            quats0[index*4+2] = 0;
-            quats0[index*4+3] = 1;
+            invMassArray[v0.id] += pm;
+            invMassArray[v1.id] += pm;
+            invMassArray[v2.id] += pm;
+            invMassArray[v3.id] += pm;
+            restVolumeArray[index] = V;
+            quatsArray[index*4+0] = 0;
+            quatsArray[index*4+1] = 0;
+            quatsArray[index*4+2] = 0;
+            quatsArray[index*4+3] = 1;
+            tetObjectIdArray[index] = tet.objectId;
         });
 
         const positionArray = new Float32Array(this.vertexCount * 3);
@@ -240,11 +265,11 @@ export class FEMPhysics {
                 influencerArray[influencerPtr] = influencer;
                 influencerPtr++;
             });
-            if (invMass[index] !== 0.0) {
-                invMass[index] = 1 / invMass[index];
+            if (invMassArray[index] !== 0.0) {
+                invMassArray[index] = 1 / invMassArray[index];
             }
+            vertexObjectIdArray[index] = vertex.objectId;
         });
-
 
         const tetArray = new Int32Array(this.tetCount * 4);
         this.tets.forEach((tet,index) => {
@@ -255,12 +280,7 @@ export class FEMPhysics {
             tetArray[index*4+3] = v3.id;
         });
 
-        const restPosesArray = new Float32Array(restPoses);
-        const quatsArray = new Float32Array(quats0);
-        const invMassArray = new Float32Array(invMass);
-        const invRestVolumeArray = new Float32Array(invRestVolume);
-        const velocityArray = new Float32Array(vel0);
-
+        this.initialPositionBuffer = instancedArray(positionArray, 'vec3');
         this.positionBuffer = instancedArray(positionArray, 'vec3');
         this.prevPositionBuffer = instancedArray(positionArray, 'vec3');
         this.influencerPtrBuffer = instancedArray(influencerPtrArray, 'uvec2');
@@ -269,8 +289,10 @@ export class FEMPhysics {
         this.restPosesBuffer = instancedArray(restPosesArray, 'vec4');
         this.quatsBuffer = instancedArray(quatsArray, 'vec4');
         this.invMassBuffer = instancedArray(invMassArray, 'float');
-        this.invRestVolumeBuffer = instancedArray(invRestVolumeArray, 'float');
-        this.velocityBuffer = instancedArray(velocityArray, 'vec3');
+        this.restVolumeBuffer = instancedArray(restVolumeArray, 'float');
+
+        this.tetObjectIdBuffer = instancedArray(tetObjectIdArray, 'uint');
+        this.vertexObjectIdBuffer = instancedArray(vertexObjectIdArray, 'uint');
 
         this.uniforms.vertexCount = uniform(this.vertexCount, "int");
         this.uniforms.tetCount = uniform(this.tetCount, "int");
@@ -334,7 +356,7 @@ export class FEMPhysics {
             const newQuat = normalize(quat_mult(rotation, prevQuat)); // Keep track of the current Quaternion for normals
             this.quatsBuffer.element(instanceIndex).assign(newQuat);
 
-            const invVolume  = float(1.0).div(this.invRestVolumeBuffer.element(instanceIndex));
+            const volume  = this.restVolumeBuffer.element(instanceIndex).toVar();
             const relativeQuat = normalize(quat_mult(newQuat, quat_conj(prevQuat)));
 
             // Rotate the undeformed tetrahedron by the deformed's rotation
@@ -343,10 +365,10 @@ export class FEMPhysics {
             ref2.assign(Rotate(ref2, relativeQuat).add(curCentroid));
             ref3.assign(Rotate(ref3, relativeQuat).add(curCentroid));
 
-            this.restPosesBuffer.element(instanceIndex.mul(4)).assign(vec4(ref0, invVolume));
-            this.restPosesBuffer.element(instanceIndex.mul(4).add(1)).assign(vec4(ref1, invVolume));
-            this.restPosesBuffer.element(instanceIndex.mul(4).add(2)).assign(vec4(ref2, invVolume));
-            this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).assign(vec4(ref3, invVolume));
+            this.restPosesBuffer.element(instanceIndex.mul(4)).assign(vec4(ref0, volume));
+            this.restPosesBuffer.element(instanceIndex.mul(4).add(1)).assign(vec4(ref1, volume));
+            this.restPosesBuffer.element(instanceIndex.mul(4).add(2)).assign(vec4(ref2, volume));
+            this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).assign(vec4(ref3, volume));
 
         })().compute(this.tetCount);
 
@@ -397,8 +419,91 @@ export class FEMPhysics {
             this.positionBuffer.element(instanceIndex).assign(newPosition);
         })().compute(this.vertexCount);
 
+        this.uniforms.resetVertexStart = uniform(0, "uint");
+        this.uniforms.resetVertexCount = uniform(0, "uint");
+        this.uniforms.resetOffset = uniform(new THREE.Vector3());
+        this.uniforms.resetVelocity = uniform(new THREE.Vector3());
+        this.uniforms.resetScale = uniform(1.0, "float");
+        this.kernels.resetVertices = Fn(()=>{
+            If(instanceIndex.greaterThanEqual(this.uniforms.resetVertexCount), () => {
+                Return();
+            });
+            const vertexId = this.uniforms.resetVertexStart.add(instanceIndex).toVar();
+            const initialPosition = this.initialPositionBuffer.element(vertexId).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            this.positionBuffer.element(vertexId).assign(initialPosition);
+            this.prevPositionBuffer.element(vertexId).assign(initialPosition.sub(this.uniforms.resetVelocity));
+        })().compute(this.vertexCount);
+
+        this.uniforms.resetTetStart = uniform(0, "uint");
+        this.uniforms.resetTetCount = uniform(0, "uint");
+        this.kernels.resetTets = Fn(() => {
+            If(instanceIndex.greaterThanEqual(this.uniforms.resetTetCount), () => {
+                Return();
+            });
+            const tetId = this.uniforms.resetTetStart.add(instanceIndex).toVar();
+            const volume  = this.restVolumeBuffer.element(instanceIndex).toVar();
+
+            // Gather this tetrahedron's 4 vertex positions
+            const vertexIds = this.tetBuffer.element(tetId);
+            const pos0 = this.initialPositionBuffer.element(vertexIds.x).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const pos1 = this.initialPositionBuffer.element(vertexIds.y).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const pos2 = this.initialPositionBuffer.element(vertexIds.z).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const pos3 = this.initialPositionBuffer.element(vertexIds.w).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+
+            this.restPosesBuffer.element(tetId.mul(4)).assign(vec4(pos0.xyz, volume));
+            this.restPosesBuffer.element(tetId.mul(4).add(1)).assign(vec4(pos1.xyz, volume))
+            this.restPosesBuffer.element(tetId.mul(4).add(2)).assign(vec4(pos2.xyz, volume))
+            this.restPosesBuffer.element(tetId.mul(4).add(3)).assign(vec4(pos3.xyz, volume))
+
+            this.quatsBuffer.element(tetId).assign(vec4(0,0,0,1));
+        })().compute(this.tetCount);
+
+        this.uniforms.mouseRayOrigin = uniform(new THREE.Vector3());
+        this.uniforms.mouseRayDirection = uniform(new THREE.Vector3());
+        this.kernels.applyMouseEvent = Fn(()=>{
+            If(instanceIndex.greaterThanEqual(this.uniforms.vertexCount), () => {
+                Return();
+            });
+
+            const { mouseRayOrigin, mouseRayDirection } = this.uniforms;
+            const position = this.positionBuffer.element(instanceIndex).toVar();
+            const prevPosition = this.prevPositionBuffer.element(instanceIndex);
+            const t = position.sub(mouseRayOrigin);
+            const distFromOrigin = dot(mouseRayDirection, t);
+            const closestPoint = mouseRayOrigin.add(mouseRayDirection.mul(distFromOrigin));
+            const dist = closestPoint.distance(position);
+            const force = dist.mul(0.3).oneMinus().max(0.0).pow(0.5);
+            prevPosition.addAssign(vec3(0,-0.05,0).mul(force));
+        })().compute(this.vertexCount);
+
+
+        this.uniforms.centerVertices = uniformArray(this.objectData.map(d => d.centerVertex.id), "uint");
+        this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
+
         const objectPromises = this.objects.map(object => object.bake(this));
         await Promise.all(objectPromises);
+    }
+
+    async resetObject(id, position, scale, velocity = new THREE.Vector3()) {
+        this.uniforms.resetVertexStart.value = this.objectData[id].vertexStart;
+        this.uniforms.resetVertexCount.value = this.objectData[id].vertexCount;
+        this.uniforms.resetTetStart.value = this.objectData[id].tetStart;
+        this.uniforms.resetTetCount.value = this.objectData[id].tetCount;
+        this.uniforms.resetOffset.value.copy(position);
+        this.uniforms.resetVelocity.value.copy(velocity);
+        this.uniforms.resetScale.value = scale;
+        this.kernels.resetVertices.count = this.objectData[id].vertexCount;
+        this.kernels.resetTets.count = this.objectData[id].tetCount;
+        this.kernels.resetVertices.updateDispatchCount();
+        this.kernels.resetTets.updateDispatchCount();
+        await this.renderer.computeAsync(this.kernels.resetVertices);
+        await this.renderer.computeAsync(this.kernels.resetTets);
+    }
+
+    async onPointerDown(origin, direction) {
+        this.uniforms.mouseRayOrigin.value.copy(origin);
+        this.uniforms.mouseRayDirection.value.copy(direction);
+        await this.renderer.computeAsync(this.kernels.applyMouseEvent);
     }
 
     async update(interval, elapsed) {
@@ -409,6 +514,11 @@ export class FEMPhysics {
         this.uniforms.dt.value = timePerStep;
 
         this.timeSinceLastStep += interval;
+
+        for (let i=0; i<this.objects.length; i++) {
+            this.uniforms.scales.array[i] = THREE.MathUtils.smoothstep(Math.min(this.objects[i].age * 3, 1.0), 0, 1);
+            await this.objects[i].update(interval, elapsed);
+        }
 
         while (this.timeSinceLastStep >= timePerStep) {
             this.time += timePerStep;

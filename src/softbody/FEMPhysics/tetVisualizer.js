@@ -16,7 +16,7 @@ export class TetVisualizer {
         const tetPositionBuffer = new THREE.BufferAttribute(new Float32Array(new Array(36).fill(0)), 3, false);
         const tetIndexBuffer = new THREE.BufferAttribute(new Int32Array([0,1,0,2,0,3,1,2,1,3,2,3]), 1, false);
 
-        this.tetMaterial = new THREE.LineBasicNodeMaterial();
+        this.tetMaterial = new THREE.LineBasicNodeMaterial({ color: 0x000000 });
         this.tetMaterial.positionNode = Fn( () => {
             const vertices = this.physics.tetBuffer.element(instanceIndex);
             const tetIndex = attribute('vertexIndex');

@@ -16,7 +16,7 @@ import {
     floor,
     Fn,
     attribute,
-    varying, transformNormalToView
+    varying, transformNormalToView, smoothstep, positionView
 } from "three/tsl";
 import {RoundedBoxGeometry} from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import {Vector3} from "three/webgpu";
@@ -52,7 +52,8 @@ class CollisionGeometry {
         const stepLength = 5;
         const stepHeight = 3;
         const stepRadius = 0.5;
-        const steps = 10;
+        const stepWidth = 250;
+        const steps = 50;
 
         const wallBox = new RoundedBoxGeometry( 0.6, 20,  stepLength * 1.2, 4, 0.1);
         const wallMaterial = new THREE.MeshPhysicalNodeMaterial( { map,aoMap,roughnessMap,normalMap } );
@@ -61,7 +62,7 @@ class CollisionGeometry {
         wallMesh.perObjectFrustumCulled = false;
         //wallMesh.receiveShadow = true;
         const wallGeometryId = wallMesh.addGeometry(wallBox);
-        this.object.add(wallMesh);
+        //this.object.add(wallMesh);
 
         const positionArray = [];
         const normalArray = [];
@@ -105,7 +106,7 @@ class CollisionGeometry {
                     const angle = beginAngle + (j / (radiusResolution - 1)) * (Math.PI * 0.5 - beginAngle);
                     const row = [];
                     for (let x = 0; x<2;x++) {
-                        const px = (x * 2 - 1) * 10;
+                        const px = (x * 2 - 1) * stepWidth * 0.5;
                         const py = pivoty - Math.cos(angle) * stepRadius;
                         const pz = pivotx + Math.sin(angle) * stepRadius;
                         positionArray.push(px,-py,pz);
@@ -127,7 +128,7 @@ class CollisionGeometry {
                     const angle = (-Math.PI*0.5) - (j / (radiusResolution - 1)) * (Math.PI * 0.5 - beginAngle);
                     const row = [];
                     for (let x = 0; x<2;x++) {
-                        const px = (x * 2 - 1) * 10;
+                        const px = (x * 2 - 1) * stepWidth * 0.5;
                         const py = pivoty - Math.cos(angle) * stepRadius;
                         const pz = pivotx + Math.sin(angle) * stepRadius;
                         positionArray.push(px,-py,pz);
@@ -143,9 +144,9 @@ class CollisionGeometry {
 
             const boxInstancedId1 = wallMesh.addInstance(wallGeometryId);
             const boxInstancedId2 = wallMesh.addInstance(wallGeometryId);
-            const matrix = new THREE.Matrix4().setPosition(-10, -(9 + i * stepHeight), (i + 0.5) * stepLength);
+            const matrix = new THREE.Matrix4().setPosition(-stepWidth * 0.5, -(9 + i * stepHeight), (i + 0.5) * stepLength);
             wallMesh.setMatrixAt(boxInstancedId1, matrix);
-            matrix.setPosition(10, -(9 + i * stepHeight), (i + 0.5) * stepLength);
+            matrix.setPosition(stepWidth * 0.5, -(9 + i * stepHeight), (i + 0.5) * stepLength);
             wallMesh.setMatrixAt(boxInstancedId2, matrix);
 
         }
@@ -171,12 +172,22 @@ class CollisionGeometry {
         geometry.setIndex(indices);
 
 
-        const material = new THREE.MeshPhysicalNodeMaterial({ map,aoMap,roughnessMap, normalMap });
+        const material = new THREE.MeshPhysicalNodeMaterial({
+            map,aoMap,roughnessMap, normalMap,
+            transparent: true,
+        });
+        material.opacityNode = Fn(() => {
+            const projectedZ = positionView.z.mul(-1);
+            const fog = smoothstep(80, 100, projectedZ).oneMinus();
+            return fog;
+        })();
 
 
         const floor = new THREE.Mesh(geometry, material);
         floor.receiveShadow = true;
         floor.frustumCulled = false;
+        floor.position.set(0, stepHeight * steps * 0.5, -stepLength * steps * 0.5);
+        this.floor = floor;
         this.object.add(floor);
 
         /*const ball = new THREE.Mesh(new THREE.SphereGeometry(1), material);

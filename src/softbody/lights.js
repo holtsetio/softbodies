@@ -17,7 +17,7 @@ export class Lights {
         light.target = lightTarget;
 
         this.object.add(light);
-        this.object.add(new THREE.SpotLightHelper(light));
+        //this.object.add(new THREE.SpotLightHelper(light));
 
         light.castShadow = true; // default false
         light.shadow.mapSize.width = 512*2; // default
