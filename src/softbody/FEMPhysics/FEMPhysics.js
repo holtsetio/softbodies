@@ -468,10 +468,8 @@ export class FEMPhysics {
             const { mouseRayOrigin, mouseRayDirection } = this.uniforms;
             const position = this.positionBuffer.element(instanceIndex).toVar();
             const prevPosition = this.prevPositionBuffer.element(instanceIndex);
-            const t = position.sub(mouseRayOrigin);
-            const distFromOrigin = dot(mouseRayDirection, t);
-            const closestPoint = mouseRayOrigin.add(mouseRayDirection.mul(distFromOrigin));
-            const dist = closestPoint.distance(position);
+
+            const dist = cross(mouseRayDirection, position.sub(mouseRayOrigin)).length()
             const force = dist.mul(0.3).oneMinus().max(0.0).pow(0.5);
             prevPosition.addAssign(vec3(0,-0.05,0).mul(force));
         })().compute(this.vertexCount);

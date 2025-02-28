@@ -60,6 +60,9 @@ class SoftbodyApp {
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
+        this.controls.enablePan = false;
+        this.controls.minDistance = 20;
+        this.controls.maxDistance = 60;
 
         await progressCallback(0.1)
 
@@ -135,6 +138,12 @@ class SoftbodyApp {
         //console.log(this.camera.position);
         conf.update();
         this.controls.update(delta);
+
+        const camZ = this.camera.position.z;
+        const minY = -camZ * (3/5);
+        const angle = Math.atan2(this.camera.position.length(), minY);
+        this.controls.maxPolarAngle = angle - 0.2;
+
         this.stats.update();
         this.time += 0.01666;
 
