@@ -1,17 +1,9 @@
 import * as THREE from "three/webgpu";
-import virus from './geometry/virus';
-import skull from './geometry/skull';
 //import virusModel from 'bundle-text:./geometry/virus_hollow75.msh';
 //import virusObj from 'bundle-text:./geometry/virus.obj';
 //import skullModel from 'bundle-text:./geometry/skull4.msh';
 //import skullObj from 'bundle-text:./geometry/skull.obj';
-//import colorMapFile from './geometry/textures/virus_baseColor.png';
-//import normalMapFile from './geometry/textures/virus_normal.png';
-//import roughnessMapFile from './geometry/textures/virus_roughness.png';
-//import metallicMapFile from './geometry/textures/virus_metallic.png';
-import colorMapFile from './geometry/textures/skullColor.png';
-import normalMapFile from './geometry/textures/skullNormal.png';
-import roughnessMapFile from './geometry/textures/skullRoughness.png';
+//import {loadModel, processObj} from "../geometry/loadModel";
 
 import {
     attribute, cross, dot,
@@ -24,7 +16,6 @@ import {
     varying,
     vec3, vec4
 } from "three/tsl";
-import {loadModel, processObj} from "./geometry/loadModel";
 
 const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {
     const quat = vec4( quat_immutable ).toVar();
@@ -39,16 +30,6 @@ const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {
         { name: 'quat', type: 'vec4' }
     ]
 } );
-const textureLoader = new THREE.TextureLoader();
-const loadTexture = (file) => {
-    return new Promise(resolve => {
-        textureLoader.load(file, texture => {
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            resolve(texture);
-        });
-    });
-}
 
 
 export class SoftbodyModel {
@@ -57,26 +38,26 @@ export class SoftbodyModel {
     tets = [];
     age = 0;
     outOfSight = false;
-    constructor(physics) {
+    constructor(physics, geometry) {
         this.physics = physics;
 
-        this.id = this.physics.addObject(this);
+        this.id = this.physics._addObject(this);
 
-        this.isSkull = Math.random() > 0.8;
+        //this.isSkull = Math.random() > 0.8;
 
         //const { tetVerts, tetIds } = Cube;
         //const model = virus; // loadModel(virusModel, virusObj);
-        const model = this.isSkull ? skull : virus; //loadModel(skullModel, skullObj);
+        //const model = this.isSkull ? skull : virus; //loadModel(skullModel, skullObj);
         //const model = loadModel(skullModel, skullObj);
 
-        this.createTetrahedralGeometry(model);
-        this.createGeometry(model);
+        this.createTetrahedralGeometry(geometry.model);
+        this.createGeometry(geometry.model, geometry.material);
 
         //console.log(skull);
         //console.log(tetVerts.map(v=>Math.round(v*10000)/10000));
 
 
-        this.object = new THREE.Object3D();
+        //this.object = new THREE.Object3D();
 
         //this.createGeometry(virusObj);
     }
@@ -99,7 +80,7 @@ export class SoftbodyModel {
         }
     }
 
-    createGeometry(model) {
+    createGeometry(model, material) {
         const { attachedTets, baryCoords, positions, normals, uvs, indices } = model;
         const vertexCount = attachedTets.length;
         const positionArray = new Float32Array(positions);
@@ -137,15 +118,14 @@ export class SoftbodyModel {
         geometry.setAttribute("objectId", objectIdBuffer);
         geometry.setIndex(indices);
 
-        this.geometry = geometry;
+        const object = new THREE.Mesh(geometry, material);
+        object.frustumCulled = false;
+        object.castShadow = true;
+        object.visible = false;
+        this.object = object;
     }
 
     createMesh() {
-        const object = new THREE.Mesh(this.geometry, SoftbodyModel.material);
-        object.frustumCulled = false;
-        object.castShadow = true;
-        this.object.add(object);
-        this.object.visible = false;
     }
 
 /*
@@ -295,20 +275,20 @@ export class SoftbodyModel {
 
     async bake() {
         //this.createImplicitGeometry();
-        this.createMesh();
+        //this.createMesh();
 
     }
 
-    static async createMaterial(physics) {
+    static createMaterial(physics) {
         const material = new THREE.MeshPhysicalNodeMaterial({
-            map: SoftbodyModel.colorMap,
-            color: 0xFFAAFF,
-            roughnessMap: SoftbodyModel.roughnessMap,
+            //map: SoftbodyModel.colorMap,
+            //color: 0xFFAAFF,
+            //roughnessMap: SoftbodyModel.roughnessMap,
             //metalnessMap: SoftbodyModel.metallicMap,
-            metalness:1.0,
-            normalMap: SoftbodyModel.normalMap,
-            normalScale: new THREE.Vector2(1,1),
-            iridescence: 1.0,
+            //metalness:1.0,
+            //normalMap: SoftbodyModel.normalMap,
+            //normalScale: new THREE.Vector2(1,1),
+            //iridescence: 1.0,
             //transparent: true,
             //opacity:0.9,
         });
@@ -352,13 +332,7 @@ export class SoftbodyModel {
             return dp.mul(of).mul(color);
         })();*/
 
-        SoftbodyModel.material = material;
-    }
-
-    static async loadTextures() {
-        SoftbodyModel.colorMap = await loadTexture(colorMapFile);
-        SoftbodyModel.normalMap = await loadTexture(normalMapFile);
-        SoftbodyModel.roughnessMap = await loadTexture(roughnessMapFile);
-        //SoftbodyModel.metallicMap = await loadTexture(metallicMapFile);
+        //SoftbodyModel.material = material;
+        return material;
     }
 }

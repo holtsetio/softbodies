@@ -8,17 +8,50 @@ import {Lights} from "./lights";
 //import hdrjpg from "../assets/clear_sky_afternoon_sky_dome_2k.jpg";
 import hdri from "../assets/syferfontein_1d_clear_puresky_1k.hdr";
 
-import {Fn, fog, normalWorld, pmremTexture, rangeFogFactor, vec3} from "three/tsl";
-import {SoftbodyModel} from "./softbodyModel";
+import {
+    dot, float,
+    Fn,
+    fog,
+    mix,
+    normalView,
+    normalWorld,
+    pmremTexture,
+    rangeFogFactor,
+    smoothstep,
+    varying,
+    vec3
+} from "three/tsl";
 import {FEMPhysics} from "./FEMPhysics/FEMPhysics";
 import {TetVisualizer} from "./FEMPhysics/tetVisualizer";
 import CollisionGeometry from "./collisionGeometry";
+
+import virus from './geometry/virus';
+import skull from './geometry/skull3';
+//import skullModel from 'bundle-text:./geometry/skull4.msh';
+//import skullObj from 'bundle-text:./geometry/skull.obj';
+//import {loadModel, processObj} from "./geometry/loadModel";
+
+import normalMapFileVirus from './geometry/textures/virus_normal.png';
+import roughnessMapFileVirus from './geometry/textures/virus_roughness.jpg';
+import colorMapFileSkull from './geometry/textures/skullColor.jpg';
+import normalMapFileSkull from './geometry/textures/skullNormal.png';
+import roughnessMapFileSkull from './geometry/textures/skullRoughness.jpg';
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
         new RGBELoader().load(file, result => { resolve(result); });
     });
     return texture;
+}
+const textureLoader = new THREE.TextureLoader();
+const loadTexture = (file) => {
+    return new Promise(resolve => {
+        textureLoader.load(file, texture => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            resolve(texture);
+        });
+    });
 }
 
 class SoftbodyApp {
@@ -85,10 +118,46 @@ class SoftbodyApp {
 
         this.physics = new FEMPhysics(this.renderer);
         //this.physics.addObject(SoftbodyModel);
-        await SoftbodyModel.loadTextures();
-        await SoftbodyModel.createMaterial(this.physics);
+        const virusGeometry = this.physics.addGeometry(virus);
+        const skullGeometry = this.physics.addGeometry(skull);
+        //const skullGeometry = this.physics.addGeometry(loadModel(skullModel,skullObj));
+
+        {
+            const mapFiles = [normalMapFileVirus, roughnessMapFileVirus];
+            const [ virusNormalMap, virusRoughnessMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
+            virusGeometry.material.normalMap = virusNormalMap;
+            virusGeometry.material.roughnessMap = virusRoughnessMap;
+            virusGeometry.material.metalness = 0.4;
+            virusGeometry.material.iridescence = 1.0;
+            virusGeometry.material.color = 0xFFAAFF;
+            virusGeometry.material.normalScale = new THREE.Vector2(3,3);
+
+            virusGeometry.material.colorNode = Fn(() => {
+                return vec3(0.5,0,0.5).mul(0.05);
+            })();
+
+            const vDistance = varying(float(0), "v_distance");
+            virusGeometry.material.emissiveNode = Fn(() => {
+                const dp = dot(vec3(0,0,1), normalView).max(0).pow(4);
+                const color = vec3(1,0,0.5);
+                const of = mix(0.0, 1.0, smoothstep(1.3,1.6, vDistance));
+                return dp.mul(of).mul(color);
+            })();
+        }
+        {
+            const mapFiles = [colorMapFileSkull, normalMapFileSkull, roughnessMapFileSkull];
+            const [ skullColorMap, skullNormalMap, skullRoughnessMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
+            skullGeometry.material.map = skullColorMap;
+            skullGeometry.material.normalMap = skullNormalMap;
+            skullGeometry.material.roughnessMap = skullRoughnessMap;
+            skullGeometry.material.metalness = 1.0;
+            skullGeometry.material.iridescence = 1.0;
+        }
+
+        //await SoftbodyModel.loadTextures();
+        //await SoftbodyModel.createMaterial(this.physics);
         for (let i=0; i<this.softbodyCount; i++) {
-            const softbody = new SoftbodyModel(this.physics);
+            const softbody = this.physics.addInstance(i % 4 === 0 ? skullGeometry : virusGeometry);
             this.scene.add(softbody.object);
             this.softbodies.push(softbody);
         }

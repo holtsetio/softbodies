@@ -23,6 +23,7 @@ import {
     normalize, Return, uniform, select, time, mix, min, uniformArray
 } from "three/tsl";
 import {mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
+import {SoftbodyModel} from "./softbodyModel";
 
 export const RotationToQuaternion = /*#__PURE__*/ Fn( ( [ axis_immutable, angle_immutable ] ) => {
 
@@ -194,7 +195,7 @@ export class FEMPhysics {
         return tet;
     }
 
-    addObject(object) {
+    _addObject(object) {
         const id = this.objects.length;
         this.objects.push(object);
         this.objectData.push({
@@ -211,13 +212,15 @@ export class FEMPhysics {
 
     addGeometry(model) {
         const id = this.geometries.length;
-        const geometry = { id, model }
+        const material = SoftbodyModel.createMaterial(this);
+        const geometry = { id, model, material }
         this.geometries.push(geometry);
         return geometry;
     }
 
     addInstance(geometry) {
-        
+        const object = new SoftbodyModel(this, geometry);
+        return object;
     }
 
     addCollider(collider) {
