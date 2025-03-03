@@ -136,6 +136,8 @@ export class FEMPhysics {
 
     objectData = [];
 
+    geometries = [];
+
     vertexCount = 0;
 
     tetCount = 0;
@@ -205,6 +207,17 @@ export class FEMPhysics {
             position: new THREE.Vector3(),
         });
         return id;
+    }
+
+    addGeometry(model) {
+        const id = this.geometries.length;
+        const geometry = { id, model }
+        this.geometries.push(geometry);
+        return geometry;
+    }
+
+    addInstance(geometry) {
+        
     }
 
     addCollider(collider) {

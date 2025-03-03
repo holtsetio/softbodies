@@ -3,13 +3,15 @@ import virus from './geometry/virus';
 import skull from './geometry/skull';
 //import virusModel from 'bundle-text:./geometry/virus_hollow75.msh';
 //import virusObj from 'bundle-text:./geometry/virus.obj';
-//import skullModel from 'bundle-text:./geometry/skull2.obj_.msh';
+//import skullModel from 'bundle-text:./geometry/skull4.msh';
 //import skullObj from 'bundle-text:./geometry/skull.obj';
-import colorMapFile from './geometry/textures/virus_baseColor.png';
-import normalMapFile from './geometry/textures/virus_normal.png';
-import roughnessMapFile from './geometry/textures/virus_roughness.png';
-import metallicMapFile from './geometry/textures/virus_metallic.png';
-
+//import colorMapFile from './geometry/textures/virus_baseColor.png';
+//import normalMapFile from './geometry/textures/virus_normal.png';
+//import roughnessMapFile from './geometry/textures/virus_roughness.png';
+//import metallicMapFile from './geometry/textures/virus_metallic.png';
+import colorMapFile from './geometry/textures/skullColor.png';
+import normalMapFile from './geometry/textures/skullNormal.png';
+import roughnessMapFile from './geometry/textures/skullRoughness.png';
 
 import {
     attribute, cross, dot,
@@ -65,6 +67,7 @@ export class SoftbodyModel {
         //const { tetVerts, tetIds } = Cube;
         //const model = virus; // loadModel(virusModel, virusObj);
         const model = this.isSkull ? skull : virus; //loadModel(skullModel, skullObj);
+        //const model = loadModel(skullModel, skullObj);
 
         this.createTetrahedralGeometry(model);
         this.createGeometry(model);
@@ -279,7 +282,7 @@ export class SoftbodyModel {
         position.z -= 5 * 5;
         position.y += 5 * 3;
         const velocity = new THREE.Vector3(0,-0.005,0.03);
-        await this.physics.resetObject(this.id, position, scale * (this.isSkull ? 7 : 1), velocity);
+        await this.physics.resetObject(this.id, position, scale, velocity);
         this.age = 0;
         this.object.visible = true;
     }
@@ -298,12 +301,13 @@ export class SoftbodyModel {
 
     static async createMaterial(physics) {
         const material = new THREE.MeshPhysicalNodeMaterial({
-            //map: SoftbodyModel.colorMap,
-            color: 0x000000,
+            map: SoftbodyModel.colorMap,
+            color: 0xFFAAFF,
             roughnessMap: SoftbodyModel.roughnessMap,
-            metalnessMap: SoftbodyModel.metallicMap,
+            //metalnessMap: SoftbodyModel.metallicMap,
+            metalness:1.0,
             normalMap: SoftbodyModel.normalMap,
-            normalScale: new THREE.Vector2(3,3),
+            normalScale: new THREE.Vector2(1,1),
             iridescence: 1.0,
             //transparent: true,
             //opacity:0.9,
@@ -338,7 +342,7 @@ export class SoftbodyModel {
             position.subAssign(positionInitial.mul(scale.oneMinus()));
             return position;
         })();
-        material.colorNode = Fn(() => {
+        /*material.colorNode = Fn(() => {
             return vec3(0.5,0,0.5).mul(0.05);
         })();
         material.emissiveNode = Fn(() => {
@@ -346,7 +350,7 @@ export class SoftbodyModel {
             const color = vec3(1,0,0.5);
             const of = mix(0.0, 1.0, smoothstep(1.3,1.6, vDistance));
             return dp.mul(of).mul(color);
-        })();
+        })();*/
 
         SoftbodyModel.material = material;
     }
@@ -355,6 +359,6 @@ export class SoftbodyModel {
         SoftbodyModel.colorMap = await loadTexture(colorMapFile);
         SoftbodyModel.normalMap = await loadTexture(normalMapFile);
         SoftbodyModel.roughnessMap = await loadTexture(roughnessMapFile);
-        SoftbodyModel.metallicMap = await loadTexture(metallicMapFile);
+        //SoftbodyModel.metallicMap = await loadTexture(metallicMapFile);
     }
 }
