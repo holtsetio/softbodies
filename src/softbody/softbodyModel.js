@@ -1,7 +1,10 @@
 import * as THREE from "three/webgpu";
 import virus from './geometry/virus';
+import skull from './geometry/skull';
 //import virusModel from 'bundle-text:./geometry/virus_hollow75.msh';
 //import virusObj from 'bundle-text:./geometry/virus.obj';
+//import skullModel from 'bundle-text:./geometry/skull2.obj_.msh';
+//import skullObj from 'bundle-text:./geometry/skull.obj';
 import colorMapFile from './geometry/textures/virus_baseColor.png';
 import normalMapFile from './geometry/textures/virus_normal.png';
 import roughnessMapFile from './geometry/textures/virus_roughness.png';
@@ -57,8 +60,11 @@ export class SoftbodyModel {
 
         this.id = this.physics.addObject(this);
 
+        this.isSkull = Math.random() > 0.8;
+
         //const { tetVerts, tetIds } = Cube;
-        const model = virus; // loadModel(virusModel, virusObj);
+        //const model = virus; // loadModel(virusModel, virusObj);
+        const model = this.isSkull ? skull : virus; //loadModel(skullModel, skullObj);
 
         this.createTetrahedralGeometry(model);
         this.createGeometry(model);
@@ -273,7 +279,7 @@ export class SoftbodyModel {
         position.z -= 5 * 5;
         position.y += 5 * 3;
         const velocity = new THREE.Vector3(0,-0.005,0.03);
-        await this.physics.resetObject(this.id, position, scale, velocity);
+        await this.physics.resetObject(this.id, position, scale * (this.isSkull ? 7 : 1), velocity);
         this.age = 0;
         this.object.visible = true;
     }
