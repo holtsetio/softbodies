@@ -6,12 +6,12 @@ const processMsh = (msh) => {
     const vertexRegex = /\$Nodes\n\d+\n(.+)\$EndNodes/gms;
     const vertexMatch = vertexRegex.exec(msh);
     const vertexRepRegex = /\d+\s(.+)\n/gm;
-    const tetVerts = vertexMatch['1'].replace(vertexRepRegex, '$1 ').trim().split(' ').map(v => Number(v)).map(v=>Math.round(v*10000)/10000);
+    const tetVertsRaw = vertexMatch['1'].replace(vertexRepRegex, '$1 ').trim().split(' ').map(v => Number(v)).map(v=>Math.round(v*10000)/10000);
 
     const tetRegex = /\$Elements\n\d+\n(.+)\$EndElements/gms;
     const tetMatch = tetRegex.exec(msh);
     const tetRepRegex = /.+(\s\d+\s\d+\s\d+\s\d+)\s\n/gm;
-    const tetIds = tetMatch['1'].replace(tetRepRegex, '$1').trim().split(' ').map(v => Number(v));
+    const tetIdsRaw = tetMatch['1'].replace(tetRepRegex, '$1').trim().split(' ').map(v => Number(v));
 
     let vertices = [];
     let tets = [];
@@ -19,6 +19,7 @@ const processMsh = (msh) => {
         const id = vertices.length;
         const vertex = new THREE.Vector3(Number(x),Number(y),Number(z));
         vertex.id = id;
+        vertex.tetCount = 0;
         vertices.push(vertex);
     }
 
@@ -30,20 +31,29 @@ const processMsh = (msh) => {
     }
 
 
-    for (let i=0; i < tetVerts.length; i += 3) {
-        const x = tetVerts[i];
-        const y = tetVerts[i+1];
-        const z = tetVerts[i+2];
+    for (let i=0; i < tetVertsRaw.length; i += 3) {
+        const x = tetVertsRaw[i];
+        const y = tetVertsRaw[i+1];
+        const z = tetVertsRaw[i+2];
         addVertex(x,y,z);
     }
 
-    for (let i=0; i < tetIds.length; i += 4) {
-        const a = vertices[tetIds[i]-1];
-        const b = vertices[tetIds[i+1]-1];
-        const c = vertices[tetIds[i+2]-1];
-        const d = vertices[tetIds[i+3]-1];
+    for (let i=0; i < tetIdsRaw.length; i += 4) {
+        const a = vertices[tetIdsRaw[i]-1];
+        const b = vertices[tetIdsRaw[i+1]-1];
+        const c = vertices[tetIdsRaw[i+2]-1];
+        const d = vertices[tetIdsRaw[i+3]-1];
+        a.tetCount++;
+        b.tetCount++;
+        c.tetCount++;
+        d.tetCount++;
         addTet(a,b,c,d);
     }
+
+    vertices = vertices.filter(v => v.tetCount > 0);
+    vertices.forEach((v, index) => { v.id = index; });
+    const tetVerts = vertices.map(v => [v.x,v.y,v.z]).flat();
+    const tetIds = tets.map(t => [t.v0.id,t.v1.id,t.v2.id,t.v3.id]).flat();
 
     return { tetVerts, tetIds, vertices, tets };
 }

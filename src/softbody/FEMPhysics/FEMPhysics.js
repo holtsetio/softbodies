@@ -4,6 +4,7 @@ import {
     instancedArray,
     instanceIndex,
     float,
+    uint,
     vec3,
     vec2,
     sin,
@@ -147,6 +148,8 @@ export class FEMPhysics {
 
     time = 0;
 
+    frameNum = 0;
+
     timeSinceLastStep = 0;
 
     colliders = [];
@@ -199,12 +202,17 @@ export class FEMPhysics {
             tetCount: 0,
             vertexStart: this.vertexCount,
             vertexCount: 0,
+            position: new THREE.Vector3(),
         });
         return id;
     }
 
     addCollider(collider) {
         this.colliders.push(collider);
+    }
+
+    getPosition(objectId) {
+        return this.objectData[objectId].position;
     }
 
     async bake() {
@@ -215,8 +223,8 @@ export class FEMPhysics {
         const invMassArray = new Float32Array(this.vertexCount);
         const quatsArray = new Float32Array(this.tetCount*4);
         const restPosesArray = new Float32Array(this.tetCount*4*4);
-        const tetObjectIdArray = new Uint32Array(this.tetCount);
-        const vertexObjectIdArray = new Uint32Array(this.vertexCount);
+        //const tetObjectIdArray = new Uint32Array(this.tetCount);
+        //const vertexObjectIdArray = new Uint32Array(this.vertexCount);
 
         this.tets.forEach((tet,index) => {
             const { v0, v1, v2, v3 } = tet;
@@ -248,7 +256,7 @@ export class FEMPhysics {
             quatsArray[index*4+1] = 0;
             quatsArray[index*4+2] = 0;
             quatsArray[index*4+3] = 1;
-            tetObjectIdArray[index] = tet.objectId;
+            //tetObjectIdArray[index] = tet.objectId;
         });
 
         const positionArray = new Float32Array(this.vertexCount * 3);
@@ -268,7 +276,7 @@ export class FEMPhysics {
             if (invMassArray[index] !== 0.0) {
                 invMassArray[index] = 1 / invMassArray[index];
             }
-            vertexObjectIdArray[index] = vertex.objectId;
+            //vertexObjectIdArray[index] = vertex.objectId;
         });
 
         const tetArray = new Int32Array(this.tetCount * 4);
@@ -291,8 +299,8 @@ export class FEMPhysics {
         this.invMassBuffer = instancedArray(invMassArray, 'float');
         this.restVolumeBuffer = instancedArray(restVolumeArray, 'float');
 
-        this.tetObjectIdBuffer = instancedArray(tetObjectIdArray, 'uint');
-        this.vertexObjectIdBuffer = instancedArray(vertexObjectIdArray, 'uint');
+        //this.tetObjectIdBuffer = instancedArray(tetObjectIdArray, 'uint');
+        //this.vertexObjectIdBuffer = instancedArray(vertexObjectIdArray, 'uint');
 
         this.uniforms.vertexCount = uniform(this.vertexCount, "int");
         this.uniforms.tetCount = uniform(this.tetCount, "int");
@@ -473,13 +481,33 @@ export class FEMPhysics {
             const force = dist.mul(0.3).oneMinus().max(0.0).pow(0.5);
             prevPosition.addAssign(vec3(0,-0.05,0).mul(force));
         })().compute(this.vertexCount);
+        await this.renderer.computeAsync(this.kernels.applyMouseEvent); //call once to compile
 
 
-        this.uniforms.centerVertices = uniformArray(this.objectData.map(d => d.centerVertex.id), "uint");
+        const centerVertexArray = new Uint32Array(this.objectData.map(d => d.centerVertex.id));
+        this.centerVertexBuffer = instancedArray(centerVertexArray, 'uint');
+        this.positionReadbackBuffer = instancedArray(new Float32Array(this.objects.length*3), 'vec3');
+        this.kernels.readPositions = Fn(()=>{
+            const centerVertex = this.centerVertexBuffer.element(instanceIndex);
+            const position = this.positionBuffer.element(centerVertex);
+            this.positionReadbackBuffer.element(instanceIndex).assign(position);
+        })().compute(this.objects.length);
+
         this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
 
         const objectPromises = this.objects.map(object => object.bake(this));
         await Promise.all(objectPromises);
+    }
+
+    async readPositions() {
+        await this.renderer.computeAsync(this.kernels.readPositions);
+        const positions = new Float32Array(await this.renderer.getArrayBufferAsync(this.positionReadbackBuffer.value));
+        this.objectData.forEach((o, index) => {
+            const x = positions[index*4+0];
+            const y = positions[index*4+1];
+            const z = positions[index*4+2];
+            o.position.set(x,y,z);
+        });
     }
 
     async resetObject(id, position, scale, velocity = new THREE.Vector3()) {
@@ -505,6 +533,12 @@ export class FEMPhysics {
     }
 
     async update(interval, elapsed) {
+        this.frameNum++;
+
+        if (this.frameNum % 50 === 0) {
+            this.readPositions(); // no await to prevent blocking!
+        }
+
         const stepsPerSecond = 300;
         const timePerStep = 1 / stepsPerSecond;
 
@@ -514,8 +548,9 @@ export class FEMPhysics {
         this.timeSinceLastStep += interval;
 
         for (let i=0; i<this.objects.length; i++) {
-            this.uniforms.scales.array[i] = THREE.MathUtils.smoothstep(Math.min(this.objects[i].age * 3, 1.0), 0, 1);
-            await this.objects[i].update(interval, elapsed);
+            const object = this.objects[i];
+            this.uniforms.scales.array[i] = THREE.MathUtils.smoothstep(Math.min(object.age * 3, 1.0), 0, 1);
+            await object.update(interval, elapsed);
         }
 
         while (this.timeSinceLastStep >= timePerStep) {
@@ -525,5 +560,8 @@ export class FEMPhysics {
             await this.renderer.computeAsync(this.kernels.solveElemPass);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
         }
+
+        //await this.readPositions();
+
     }
 }

@@ -3,7 +3,6 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 import Stats from "three/examples/jsm/libs/stats.module"
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
-import {conf} from "./conf";
 import {Lights} from "./lights";
 
 //import hdrjpg from "../assets/clear_sky_afternoon_sky_dome_2k.jpg";
@@ -41,8 +40,6 @@ class SoftbodyApp {
 
     softbodyCount = 15;
 
-    currentSoftbody = 0;
-
     lastSoftbody = 0;
 
     constructor(renderer) {
@@ -52,7 +49,7 @@ class SoftbodyApp {
     async init(progressCallback) {
         this.time = 0;
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
-        this.camera.position.set(-30,10, 27);
+        this.camera.position.set(30,10, 27);
         this.camera.lookAt(0,0,0);
         this.camera.updateProjectionMatrix()
 
@@ -91,7 +88,7 @@ class SoftbodyApp {
         await SoftbodyModel.loadTextures();
         await SoftbodyModel.createMaterial(this.physics);
         for (let i=0; i<this.softbodyCount; i++) {
-            const softbody = new SoftbodyModel(this.physics, new THREE.Vector3(0, 0, 0));
+            const softbody = new SoftbodyModel(this.physics);
             this.scene.add(softbody.object);
             this.softbodies.push(softbody);
         }
@@ -136,7 +133,7 @@ class SoftbodyApp {
 
     async update(delta, elapsed) {
         //console.log(this.camera.position);
-        conf.update();
+        //conf.update();
         this.controls.update(delta);
 
         const camZ = this.camera.position.z;
@@ -149,11 +146,10 @@ class SoftbodyApp {
 
         this.lastSoftbody += delta;
         if (this.lastSoftbody > 1.0) {
-            this.lastSoftbody = Math.random() * -1.0;
-            await this.softbodies[this.currentSoftbody].reset();
-            this.currentSoftbody++;
-            if (this.currentSoftbody >= this.softbodyCount) {
-                this.currentSoftbody = 0;
+            const nextSoftbody = this.softbodies.find(sb => sb.outOfSight);
+            if (nextSoftbody) {
+                this.lastSoftbody = Math.random() * -1.0;
+                await nextSoftbody.reset();
             }
         }
         //this.cloth.update();

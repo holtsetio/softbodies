@@ -18,8 +18,6 @@ import {
     attribute,
     varying, transformNormalToView, smoothstep, positionView
 } from "three/tsl";
-import {RoundedBoxGeometry} from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import {Vector3} from "three/webgpu";
 
 import colorMapFile from '../assets/rock_0005_color_1k.jpg';
 import aoMapFile from '../assets/rock_0005_ao_1k.jpg';
@@ -55,7 +53,7 @@ class CollisionGeometry {
         const stepWidth = 250;
         const steps = 50;
 
-        const wallBox = new RoundedBoxGeometry( 0.6, 20,  stepLength * 1.2, 4, 0.1);
+        /*const wallBox = new RoundedBoxGeometry( 0.6, 20,  stepLength * 1.2, 4, 0.1);
         const wallMaterial = new THREE.MeshPhysicalNodeMaterial( { map,aoMap,roughnessMap,normalMap } );
         const wallMesh = new THREE.BatchedMesh( steps * 2, 24000, 36000, wallMaterial );
         wallMesh.castShadow = true;
@@ -63,6 +61,7 @@ class CollisionGeometry {
         //wallMesh.receiveShadow = true;
         const wallGeometryId = wallMesh.addGeometry(wallBox);
         //this.object.add(wallMesh);
+         */
 
         const positionArray = [];
         const normalArray = [];
@@ -142,12 +141,12 @@ class CollisionGeometry {
                 }
             }
 
-            const boxInstancedId1 = wallMesh.addInstance(wallGeometryId);
+            /*const boxInstancedId1 = wallMesh.addInstance(wallGeometryId);
             const boxInstancedId2 = wallMesh.addInstance(wallGeometryId);
             const matrix = new THREE.Matrix4().setPosition(-stepWidth * 0.5, -(9 + i * stepHeight), (i + 0.5) * stepLength);
             wallMesh.setMatrixAt(boxInstancedId1, matrix);
             matrix.setPosition(stepWidth * 0.5, -(9 + i * stepHeight), (i + 0.5) * stepLength);
-            wallMesh.setMatrixAt(boxInstancedId2, matrix);
+            wallMesh.setMatrixAt(boxInstancedId2, matrix);*/
 
         }
 

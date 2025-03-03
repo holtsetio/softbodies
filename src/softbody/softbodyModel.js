@@ -1,10 +1,7 @@
 import * as THREE from "three/webgpu";
-import * as Icosphere from './geometry/icosphere';
-import * as Cube from './geometry/cube';
-import * as Torus from './geometry/torus';
 import virus from './geometry/virus';
-import virusModel from 'bundle-text:./geometry/virus_hollow75.msh';
-import virusObj from 'bundle-text:./geometry/virus.obj';
+//import virusModel from 'bundle-text:./geometry/virus_hollow75.msh';
+//import virusObj from 'bundle-text:./geometry/virus.obj';
 import colorMapFile from './geometry/textures/virus_baseColor.png';
 import normalMapFile from './geometry/textures/virus_normal.png';
 import roughnessMapFile from './geometry/textures/virus_roughness.png';
@@ -23,7 +20,6 @@ import {
     vec3, vec4
 } from "three/tsl";
 import {loadModel, processObj} from "./geometry/loadModel";
-import {OBJLoader} from "three/examples/jsm/loaders/OBJLoader";
 
 const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {
     const quat = vec4( quat_immutable ).toVar();
@@ -36,16 +32,6 @@ const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {
     inputs: [
         { name: 'pos', type: 'vec3' },
         { name: 'quat', type: 'vec4' }
-    ]
-} );
-const quat_conj = /*#__PURE__*/ Fn( ( [ q_immutable ] ) => {
-    const q = vec4( q_immutable ).toVar();
-    return normalize( vec4( q.x.negate(), q.y.negate(), q.z.negate(), q.w ) );
-} ).setLayout( {
-    name: 'quat_conj',
-    type: 'vec4',
-    inputs: [
-        { name: 'q', type: 'vec4' }
     ]
 } );
 const textureLoader = new THREE.TextureLoader();
@@ -65,13 +51,14 @@ export class SoftbodyModel {
     vertices = [];
     tets = [];
     age = 0;
+    outOfSight = false;
     constructor(physics) {
         this.physics = physics;
 
         this.id = this.physics.addObject(this);
 
         //const { tetVerts, tetIds } = Cube;
-        const model = virus; //loadModel(virusModel, virusObj);
+        const model = virus; // loadModel(virusModel, virusObj);
 
         this.createTetrahedralGeometry(model);
         this.createGeometry(model);
@@ -95,10 +82,10 @@ export class SoftbodyModel {
             this.vertices.push(vertex);
         }
         for (let i=0; i < tetIds.length; i += 4) {
-            const a = this.vertices[tetIds[i]-1];
-            const b = this.vertices[tetIds[i+1]-1];
-            const c = this.vertices[tetIds[i+2]-1];
-            const d = this.vertices[tetIds[i+3]-1];
+            const a = this.vertices[tetIds[i]];
+            const b = this.vertices[tetIds[i+1]];
+            const c = this.vertices[tetIds[i+2]];
+            const d = this.vertices[tetIds[i+3]];
             this.tets.push(this.physics.addTet(this.id,a,b,c,d));
         }
     }
@@ -112,6 +99,7 @@ export class SoftbodyModel {
         const tetIdArray = new Uint32Array(vertexCount);
         const vertexIdArray = new Uint32Array(vertexCount * 4);
         const tetBaryCoordsArray = new Float32Array(baryCoords);
+        const objectIdArray = new Uint32Array([this.id]);
 
         for (let i=0; i<vertexCount; i++) {
             const tet = this.tets[attachedTets[i]];
@@ -128,6 +116,7 @@ export class SoftbodyModel {
         const tetIdBuffer = new THREE.BufferAttribute(tetIdArray, 1, false);
         const vertexIdsBuffer = new THREE.BufferAttribute(vertexIdArray, 4, false);
         const tetBaryCoordsBuffer = new THREE.BufferAttribute(tetBaryCoordsArray, 3, false);
+        const objectIdBuffer = new THREE.InstancedBufferAttribute(objectIdArray, 1, false);
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute("position", positionBuffer);
@@ -136,6 +125,7 @@ export class SoftbodyModel {
         geometry.setAttribute("tetId", tetIdBuffer);
         geometry.setAttribute("vertexIds", vertexIdsBuffer);
         geometry.setAttribute("tetBaryCoords", tetBaryCoordsBuffer);
+        geometry.setAttribute("objectId", objectIdBuffer);
         geometry.setIndex(indices);
 
         this.geometry = geometry;
@@ -146,6 +136,7 @@ export class SoftbodyModel {
         object.frustumCulled = false;
         object.castShadow = true;
         this.object.add(object);
+        this.object.visible = false;
     }
 
 /*
@@ -284,10 +275,13 @@ export class SoftbodyModel {
         const velocity = new THREE.Vector3(0,-0.005,0.03);
         await this.physics.resetObject(this.id, position, scale, velocity);
         this.age = 0;
+        this.object.visible = true;
     }
 
     async update(interval) {
         this.age += interval;
+        const position = this.physics.getPosition(this.id);
+        this.outOfSight = (!this.object.visible || position.z > 60);
     }
 
     async bake() {
@@ -331,15 +325,11 @@ export class SoftbodyModel {
             const c = v3.sub(v0).mul(baryCoords.z);
             const position = a.add(b).add(c).add(v0).toVar();
 
-            const objectId = physics.tetObjectIdBuffer.element(tetId).toVar();
-            //const centerVertex = 0; //physics.uniforms.centerVertices.element(objectId).toVar();
-            //const centerPosInitial = physics.initialPositionBuffer.element(centerVertex).xyz.toVar();
-            //const centerPos = physics.positionBuffer.element(centerVertex).xyz.toVar();
-            const positionInitial = attribute("position"); //physics.initialPositionBuffer.element(vertexIds.x).xyz.toVar();
-            const offset = position.sub(positionInitial).toVar();
+            const objectId = attribute("objectId");
+            const positionInitial = attribute("position");
             const scale = physics.uniforms.scales.element(objectId).toVar();
 
-            position.assign(position.sub(offset).mul(scale).add(offset));
+            position.subAssign(positionInitial.mul(scale.oneMinus()));
             return position;
         })();
         material.colorNode = Fn(() => {

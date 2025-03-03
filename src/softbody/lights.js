@@ -1,19 +1,14 @@
 import * as THREE from "three/webgpu";
-import {noise3D} from "./common/noise";
-import chroma from "chroma-js";
-import {conf} from "./conf";
 
 export class Lights {
     lights = [];
-
-    lightNum = 4;
 
     constructor() {
         this.object = new THREE.Object3D();
         const light = new THREE.SpotLight(0xffffff, 5, 0, Math.PI * 0.25, 1, 0);
         const lightTarget = new THREE.Object3D();
-        light.position.set(30, 10, 40);
-        lightTarget.position.set(10,-10,0);
+        light.position.set(30, 10, 50);
+        lightTarget.position.set(10,-10,10);
         light.target = lightTarget;
 
         this.object.add(light);
