@@ -6,7 +6,7 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import {Lights} from "./lights";
 
 //import hdrjpg from "../assets/clear_sky_afternoon_sky_dome_2k.jpg";
-import hdri from "../assets/syferfontein_1d_clear_puresky_1k.hdr";
+import hdri from "../assets/autumn_field_puresky_1k.hdr";
 
 import {
     dot, float,
@@ -36,6 +36,7 @@ import roughnessMapFileVirus from './geometry/textures/virus_roughness.jpg';
 import colorMapFileSkull from './geometry/textures/skullColor.jpg';
 import normalMapFileSkull from './geometry/textures/skullNormal.png';
 import roughnessMapFileSkull from './geometry/textures/skullRoughness.jpg';
+import {conf} from "./conf";
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
@@ -75,6 +76,8 @@ class SoftbodyApp {
 
     lastSoftbody = 0;
 
+    showTetrahedrons = false;
+
     constructor(renderer) {
         this.renderer = renderer;
     }
@@ -106,7 +109,7 @@ class SoftbodyApp {
         //this.scene.environmentRotation.set(0, Math.PI, 0);
         //this.scene.backgroundNode = Fn(() => { return vec3(0); })();
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.5;
+        this.renderer.toneMappingExposure = 0.8;
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -154,8 +157,6 @@ class SoftbodyApp {
             skullGeometry.material.iridescence = 1.0;
         }
 
-        //await SoftbodyModel.loadTextures();
-        //await SoftbodyModel.createMaterial(this.physics);
         for (let i=0; i<this.softbodyCount; i++) {
             const softbody = this.physics.addInstance(i % 4 === 0 ? skullGeometry : virusGeometry);
             this.scene.add(softbody.object);
@@ -170,10 +171,9 @@ class SoftbodyApp {
 
         await this.physics.bake();
 
-
-
         this.tetVisualizer = new TetVisualizer(this.physics);
-        //this.scene.add(this.tetVisualizer.object);
+        this.tetVisualizer.object.visible = false;
+        this.scene.add(this.tetVisualizer.object);
 
         this.stats = new Stats();
         this.stats.showPanel(0); // Panel 0 = fps
@@ -192,7 +192,6 @@ class SoftbodyApp {
         pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(pointer, this.camera);
         await this.physics.onPointerDown(this.camera.position, this.raycaster.ray.direction);
-        //Medusa.setMouseRay(this.raycaster.ray.direction);
     }
 
     resize(width, height) {
@@ -201,6 +200,14 @@ class SoftbodyApp {
     }
 
     async update(delta, elapsed) {
+        const { showTetrahedrons } = conf;
+        if (showTetrahedrons !== this.showTetrahedrons) {
+            this.showTetrahedrons = showTetrahedrons;
+            this.softbodies.forEach(sb => { sb.object.visible = sb.spawned && !showTetrahedrons; })
+            this.tetVisualizer.object.visible = showTetrahedrons;
+        }
+
+
         //console.log(this.camera.position);
         //conf.update();
         this.controls.update(delta);
@@ -219,6 +226,7 @@ class SoftbodyApp {
             if (nextSoftbody) {
                 this.lastSoftbody = Math.random() * -1.0;
                 await nextSoftbody.reset();
+                nextSoftbody.object.visible = !this.showTetrahedrons;
             }
         }
         //this.cloth.update();

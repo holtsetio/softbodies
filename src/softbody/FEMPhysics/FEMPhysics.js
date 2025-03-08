@@ -552,7 +552,7 @@ export class FEMPhysics {
         this.frameNum++;
 
         if (this.frameNum % 50 === 0) {
-            this.readPositions(); // no await to prevent blocking!
+            this.readPositions().then(() => {}); // no await to prevent blocking!
         }
 
         const stepsPerSecond = 300;

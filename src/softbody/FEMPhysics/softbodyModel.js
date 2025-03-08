@@ -37,6 +37,7 @@ export class SoftbodyModel {
     vertices = [];
     tets = [];
     age = 0;
+    spawned = false;
     outOfSight = false;
     constructor(physics, geometry) {
         this.physics = physics;
@@ -265,12 +266,13 @@ export class SoftbodyModel {
         await this.physics.resetObject(this.id, position, scale, velocity);
         this.age = 0;
         this.object.visible = true;
+        this.spawned = true;
     }
 
     async update(interval) {
         this.age += interval;
         const position = this.physics.getPosition(this.id);
-        this.outOfSight = (!this.object.visible || position.z > 60);
+        this.outOfSight = (!this.spawned || position.z > 60);
     }
 
     async bake() {
