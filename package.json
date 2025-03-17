@@ -8,11 +8,9 @@
     "build": "parcel build src/index.html --public-url ./"
   },
   "dependencies": {
-    "@monogrid/gainmap-js": "^3.0.6",
-    "chroma-js": "^3.1.1",
-    "dat.gui": "0.x",
-    "simplex-noise": "^4.0.3",
-    "three": "^0.172.0"
+    "@tweakpane/plugin-essentials": "^0.2.1",
+    "three": "^0.172.0",
+    "tweakpane": "^4.0.5"
   },
   "devDependencies": {
     "@parcel/transformer-glsl": "^2.9.3",

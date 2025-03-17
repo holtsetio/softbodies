@@ -1,6 +1,6 @@
 import * as THREE from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-import Stats from "three/examples/jsm/libs/stats.module"
+//import Stats from "three/examples/jsm/libs/stats.module"
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
 import {Lights} from "./lights";
@@ -76,7 +76,7 @@ class SoftbodyApp {
 
     lastSoftbody = 0;
 
-    showTetrahedrons = false;
+    wireframe = false;
 
     constructor(renderer) {
         this.renderer = renderer;
@@ -175,10 +175,10 @@ class SoftbodyApp {
         this.tetVisualizer.object.visible = false;
         this.scene.add(this.tetVisualizer.object);
 
-        this.stats = new Stats();
+        /*this.stats = new Stats();
         this.stats.showPanel(0); // Panel 0 = fps
         this.stats.domElement.style.cssText = "position:absolute;top:0px;left:0px;";
-        this.renderer.domElement.parentElement.appendChild(this.stats.domElement);
+        this.renderer.domElement.parentElement.appendChild(this.stats.domElement);*/
 
         this.raycaster = new THREE.Raycaster();
         this.renderer.domElement.addEventListener("pointerdown", (event) => { this.onPointerDown(event); });
@@ -200,11 +200,13 @@ class SoftbodyApp {
     }
 
     async update(delta, elapsed) {
-        const { showTetrahedrons } = conf;
-        if (showTetrahedrons !== this.showTetrahedrons) {
-            this.showTetrahedrons = showTetrahedrons;
-            this.softbodies.forEach(sb => { sb.object.visible = sb.spawned && !showTetrahedrons; })
-            this.tetVisualizer.object.visible = showTetrahedrons;
+        conf.begin();
+
+        const { wireframe } = conf;
+        if (wireframe !== this.wireframe) {
+            this.wireframe = wireframe;
+            this.softbodies.forEach(sb => { sb.object.visible = sb.spawned && !wireframe; })
+            this.tetVisualizer.object.visible = wireframe;
         }
 
 
@@ -217,7 +219,7 @@ class SoftbodyApp {
         const angle = Math.atan2(this.camera.position.length(), minY);
         this.controls.maxPolarAngle = angle - 0.2;
 
-        this.stats.update();
+        //this.stats.update();
         this.time += 0.01666;
 
         this.lastSoftbody += delta;
@@ -226,7 +228,7 @@ class SoftbodyApp {
             if (nextSoftbody) {
                 this.lastSoftbody = Math.random() * -1.0;
                 await nextSoftbody.reset();
-                nextSoftbody.object.visible = !this.showTetrahedrons;
+                nextSoftbody.object.visible = !this.wireframe;
             }
         }
         //this.cloth.update();
@@ -234,6 +236,8 @@ class SoftbodyApp {
         await this.physics.update(delta, elapsed);
 
         await this.renderer.renderAsync(this.scene, this.camera);
+
+        conf.end();
     }
 }
 export default SoftbodyApp;
