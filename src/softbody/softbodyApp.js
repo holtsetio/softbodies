@@ -37,6 +37,7 @@ import colorMapFileSkull from './geometry/textures/skullColor.jpg';
 import normalMapFileSkull from './geometry/textures/skullNormal.png';
 import roughnessMapFileSkull from './geometry/textures/skullRoughness.jpg';
 import {conf} from "./conf";
+import {Info} from "./info";
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
@@ -83,6 +84,8 @@ class SoftbodyApp {
     }
 
     async init(progressCallback) {
+        conf.init();
+        this.info = new Info();
         this.time = 0;
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
         this.camera.position.set(30,10, 27);

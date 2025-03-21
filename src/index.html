@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, shrink-to-fit=0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-    <title>Three.js Starter Template</title>
+    <title>WebGPU softbodies</title>
     <style>
       html,
       body {
@@ -35,7 +35,7 @@
         left: 50vw;
         top: 50vh;
         transition: opacity 0.2s ease;
-        transform: translateX(-50%);
+        transform: translateX(-50%) translateY(-50%);
         background-color: #333;
       }
       #progress {
@@ -47,12 +47,22 @@
         transition: width 0.2s ease;
         background-color: #848484;
       }
+      #error {
+        position: absolute;
+        left: 50vw;
+        top: 50vh;
+        transform: translateX(-50%) translateY(-50%);
+        color: #FFFFFF;
+        visibility: hidden;
+      }
     </style>
+	<script defer src="https://s.holtsetio.com/script.js" data-website-id="cb36fa92-2381-4031-8f81-f430a473156d"></script>
   </head>
   <body>
-    <div id="container"></div>
+    <div id="container">
     <div id="veil">
       <div id="progress-bar"><div id="progress"></div></div>
+      <div id="error">Error: Your device does not support WebGPU.</div>
     </div>
     <script src="./index.js" type="module"></script>
   </body>

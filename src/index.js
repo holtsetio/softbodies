@@ -21,11 +21,20 @@ const createRenderer = () => {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   return renderer;
 }
+const noWebGPU = () => {
+  const progressBar = document.getElementById("progress-bar");
+  progressBar.style.opacity = 0;
+  const error = document.getElementById("error");
+  error.style.visibility = "visible";
+  const veil = document.getElementById("veil");
+  error.style.pointerEvents = "auto";
+};
 
 const run = async ()=>{
-  /*console.warn = (lol)=>{
-    window.alert(lol);
-  };*/
+  if (!navigator.gpu) {
+    noWebGPU();
+    return;
+  }
 
   const renderer = createRenderer();
   const container = document.getElementById("container");

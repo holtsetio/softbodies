@@ -7,6 +7,10 @@ class Conf {
     wireframe = false;
 
     constructor() {
+
+    }
+
+    init() {
         const gui = new Pane()
         gui.registerPlugin(EssentialsPlugin);
 
