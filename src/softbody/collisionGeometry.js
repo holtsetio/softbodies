@@ -16,7 +16,7 @@ import {
     floor,
     Fn,
     attribute,
-    varying, transformNormalToView, smoothstep, positionView
+    varying, transformNormalToView, smoothstep, positionView, positionWorld
 } from "three/tsl";
 
 import colorMapFile from '../assets/rock_0005_color_1k.jpg';
@@ -46,7 +46,7 @@ class CollisionGeometry {
     async createGeometry() {
         const [map, aoMap, normalMap, roughnessMap] = await Promise.all([loadTexture(colorMapFile), loadTexture(aoMapFile), loadTexture(normalMapFile), loadTexture(roughnessMapFile)]);
 
-        const slope = 0.2;
+        const slope = 0.1;
         const stepLength = 5;
         const stepHeight = 3;
         const stepRadius = 0.5;
@@ -176,8 +176,9 @@ class CollisionGeometry {
             transparent: true,
         });
         material.opacityNode = Fn(() => {
+            const dist = positionWorld.xz.length();
             const projectedZ = positionView.z.mul(-1);
-            const fog = smoothstep(80, 100, projectedZ).oneMinus();
+            const fog = smoothstep(30, 50, dist).oneMinus();
             return fog;
         })();
 
@@ -187,13 +188,14 @@ class CollisionGeometry {
         floor.frustumCulled = false;
         floor.position.set(0, stepHeight * steps * 0.5, -stepLength * steps * 0.5);
         this.floor = floor;
-        this.object.add(floor);
+        //this.object.add(floor);
 
         /*const ball = new THREE.Mesh(new THREE.SphereGeometry(1), material);
         ball.position.set(0,5,8);
         ball.castShadow = true;
         this.object.add(ball);*/
 
+        /*
         const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
             const posZDiv = position.z.mul(0.2);
@@ -211,6 +213,13 @@ class CollisionGeometry {
             } );
 
             return vec4( normal, dist );
+        };
+        this.physics.addCollider(collider);*/
+
+
+        const collider = (positionImmutable) => {
+            const position = vec3(positionImmutable).toVar();
+            return vec4( 0,1,0, position.y );
         };
         this.physics.addCollider(collider);
     }

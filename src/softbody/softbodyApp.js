@@ -87,7 +87,7 @@ class SoftbodyApp {
         conf.init();
         this.info = new Info();
         this.time = 0;
-        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 120);
         this.camera.position.set(30,10, 27);
         this.camera.lookAt(0,0,0);
         this.camera.updateProjectionMatrix()
@@ -229,7 +229,7 @@ class SoftbodyApp {
         if (this.lastSoftbody > 1.0) {
             const nextSoftbody = this.softbodies.find(sb => sb.outOfSight);
             if (nextSoftbody) {
-                this.lastSoftbody = Math.random() * -1.0;
+                this.lastSoftbody = Math.random() * -0.0;
                 await nextSoftbody.reset();
                 nextSoftbody.object.visible = !this.wireframe;
             }

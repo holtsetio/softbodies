@@ -21,22 +21,31 @@ const createRenderer = () => {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   return renderer;
 }
-const noWebGPU = () => {
+
+const error = (msg) => {
   const progressBar = document.getElementById("progress-bar");
   progressBar.style.opacity = 0;
   const error = document.getElementById("error");
   error.style.visibility = "visible";
+  error.innerText = "Error: " + msg;
   const veil = document.getElementById("veil");
   error.style.pointerEvents = "auto";
 };
 
+
 const run = async ()=>{
   if (!navigator.gpu) {
-    noWebGPU();
+    error("Your device does not support WebGPU.");
     return;
   }
 
   const renderer = createRenderer();
+
+  if (!renderer.backend.isWebGPUBackend) {
+    error("Couldn't initialize WebGPU. Make sure WebGPU is supported by your Browser!");
+    return;
+  }
+  
   const container = document.getElementById("container");
   container.appendChild(renderer.domElement);
 

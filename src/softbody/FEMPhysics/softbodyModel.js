@@ -11,10 +11,10 @@ import {
     Fn,
     instancedArray,
     instanceIndex,
-    Loop, mix, mul, normalize, normalView, positionLocal, smoothstep,
+    Loop, mix, mul, normalize, normalView, positionLocal, smoothstep, struct,
     transformNormalToView,
     varying,
-    vec3, vec4
+    vec3, vec4, instancedArray
 } from "three/tsl";
 
 const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {
@@ -79,6 +79,7 @@ export class SoftbodyModel {
             const d = this.vertices[tetIds[i+3]];
             this.tets.push(this.physics.addTet(this.id,a,b,c,d));
         }
+        this.findSurface();
     }
 
     createGeometry(model, material) {
@@ -129,6 +130,60 @@ export class SoftbodyModel {
     createMesh() {
     }
 
+    findSurface() {
+        const triangleDict = {};
+        const triangles = [];
+        const addTriangle = (v0, v1, v2, v3) => {
+            const id = [v0.id, v1.id, v2.id].sort((a,b) => { return a - b; }).join('.');
+            if (triangleDict[id]) {
+                delete triangleDict[id];
+            } else {
+                triangleDict[id] = [v0, v1, v2, v3];
+            }
+        };
+
+        this.tets.forEach((tet) => {
+            const { v0,v1,v2,v3 } = tet;
+            addTriangle(v0, v1, v2, v3);
+            addTriangle(v1, v2, v3, v0);
+            addTriangle(v2, v3, v0, v1);
+            addTriangle(v3, v0, v1, v2);
+        });
+
+        const tangent = new THREE.Vector3();
+        const bitangent = new THREE.Vector3();
+        const toInner = new THREE.Vector3();
+
+        Object.keys(triangleDict).forEach(key => {
+            const triangle = triangleDict[key];
+            let [v0, v1, v2, v3] = triangle;
+            tangent.copy(v0).sub(v1);
+            bitangent.copy(v0).sub(v2);
+            toInner.copy(v3).sub(v0);
+            if (tangent.cross(bitangent).dot(toInner) > 0) {
+                [v1, v2] = [v2, v1];
+            }
+            v0.isSurface = true;
+            v0.triangles.push([v1,v2]);
+            v1.isSurface = true;
+            v1.triangles.push([v2,v0]);
+            v2.isSurface = true;
+            v2.triangles.push([v0,v1]);
+            triangles.push([v0,v1,v2]);
+        });
+
+        const surfaceVertices = this.vertices.filter(v => v.isSurface);
+
+        /*console.log(this.tets.length + " tets");
+        console.log(this.vertices.length + " vertices");
+        console.log(surfaceVertices.length + " surfaceVertices");
+        console.log(triangles.length + " triangles");*/
+
+        this.triangles = triangles.map(t => {
+            const [v0,v1,v2] = t;
+            return this.physics.addTriangle(this.id,v0,v1,v2)
+        });
+    }
 /*
     createImplicitGeometry() {
         const triangleDict = {};
@@ -258,7 +313,7 @@ export class SoftbodyModel {
     }*/
 
     async reset() {
-        const scale = 1.0 + Math.random() * 2;
+        const scale = 3; //1.0 + Math.random() * 2;
         const position = new THREE.Vector3((Math.random() - 0.5) * 40, 3 + 2 * scale + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
         position.z -= 5 * 5;
         position.y += 5 * 3;
@@ -272,7 +327,7 @@ export class SoftbodyModel {
     async update(interval) {
         this.age += interval;
         const position = this.physics.getPosition(this.id);
-        this.outOfSight = (!this.spawned || position.z > 60);
+        this.outOfSight = (!this.spawned || position.z > 70);
     }
 
     async bake() {
@@ -324,10 +379,27 @@ export class SoftbodyModel {
             position.subAssign(positionInitial.mul(scale.oneMinus()));
             return position;
         })();
-        /*material.colorNode = Fn(() => {
-            return vec3(0.5,0,0.5).mul(0.05);
-        })();
-        material.emissiveNode = Fn(() => {
+
+        /*
+        const testStruct = struct( {
+            vertices: { type: 'ivec3' },
+            objectId: { type: 'uint' },
+            ptr: { type: 'int' },
+        } );
+        const triangleStride = 8;
+
+        const array = [0,1,2];
+        const triangleArrayI32 = new Int32Array(array.length * triangleStride);
+        const triangleArrayF32 = new Float32Array(triangleArrayI32.buffer);
+        array.forEach((v, index) => {
+            triangleArrayI32[index*triangleStride+4] = index;
+        });
+        const testBuffer = instancedArray(triangleArrayI32, testStruct);
+
+        material.fragmentNode = Fn(() => {
+            return vec4(vec3(float(testBuffer.element(2).get('ptr')).div(2)), 1);
+        })();*/
+        /*material.emissiveNode = Fn(() => {
             const dp = dot(vec3(0,0,1), normalView).max(0).pow(4);
             const color = vec3(1,0,0.5);
             const of = mix(0.0, 1.0, smoothstep(1.3,1.6, vDistance));

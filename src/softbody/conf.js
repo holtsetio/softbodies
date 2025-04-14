@@ -4,7 +4,7 @@ import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 class Conf {
     gui = null;
 
-    wireframe = false;
+    wireframe = true;
 
     constructor() {
 

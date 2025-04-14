@@ -17,7 +17,7 @@ export class Info {
 
         const info = pane.addFolder({
             title: "info",
-            expanded: false,
+            expanded: true,
         });
         info.addBlade({
             view: "infodump",

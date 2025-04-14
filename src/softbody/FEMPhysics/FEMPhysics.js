@@ -20,10 +20,36 @@ import {
     If,
     Loop,
     Break,
-    normalize, Return, uniform, select, time, mix, min, uniformArray
+    normalize, Return, uniform, select, time, mix, min, uniformArray, ivec3, atomicAdd, uvec3, struct
 } from "three/tsl";
-import {mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
+import {mx_hash_int, mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
 import {SoftbodyModel} from "./softbodyModel";
+
+export const murmurHash13 = /*#__PURE__*/ Fn( ( [ src_immutable ] ) => {
+    const src = uvec3( src_immutable ).toVar();
+    const M = uint( int( 0x5bd1e995 ) );
+    const h = uint( uint( 1190494759 ) ).toVar();
+    src.mulAssign( M );
+    src.bitXorAssign( src.shiftRight( uvec3( 24 ) ) );
+    src.mulAssign( M );
+    h.mulAssign( M );
+    h.bitXorAssign( src.x );
+    h.mulAssign( M );
+    h.bitXorAssign( src.y );
+    h.mulAssign( M );
+    h.bitXorAssign( src.z );
+    h.bitXorAssign( h.shiftRight( uint( 13 ) ) );
+    h.mulAssign( M );
+    h.bitXorAssign( h.shiftRight( uint( 15 ) ) );
+    return h;
+} ).setLayout( {
+    name: 'murmurHash13',
+    type: 'uint',
+    inputs: [
+        { name: 'src', type: 'uvec3' }
+    ]
+} );
+
 
 export const RotationToQuaternion = /*#__PURE__*/ Fn( ( [ axis_immutable, angle_immutable ] ) => {
 
@@ -133,6 +159,8 @@ export class FEMPhysics {
 
     tets = [];
 
+    triangles = [];
+
     objects = [];
 
     objectData = [];
@@ -142,6 +170,8 @@ export class FEMPhysics {
     vertexCount = 0;
 
     tetCount = 0;
+
+    triangleCount = 0;
 
     density = 1000;
 
@@ -195,6 +225,15 @@ export class FEMPhysics {
         return tet;
     }
 
+    addTriangle(objectId, v0, v1, v2) {
+        const id = this.triangleCount;
+        const triangle = {id,v0,v1,v2,objectId};
+        this.triangles.push(triangle);
+        this.objectData[objectId].triangleCount++;
+        this.triangleCount++;
+        return triangle;
+    }
+
     _addObject(object) {
         const id = this.objects.length;
         this.objects.push(object);
@@ -205,6 +244,8 @@ export class FEMPhysics {
             tetCount: 0,
             vertexStart: this.vertexCount,
             vertexCount: 0,
+            triangleStart: this.triangleCount,
+            triangleCount: 0,
             position: new THREE.Vector3(),
         });
         return id;
@@ -234,13 +275,24 @@ export class FEMPhysics {
     async bake() {
         console.log(this.vertexCount + " vertices");
         console.log(this.tetCount + " tetrahedrons");
+        console.log(this.triangleCount + " triangles");
+
+        let length = 0;
+        this.triangles.forEach(triangle => {
+            const { v0, v1, v2 } = triangle;
+            length += v0.distanceTo(v1);
+            length += v1.distanceTo(v2);
+            length += v2.distanceTo(v0);
+        })
+        console.log("avg triangleSide: " + (length / (this.triangles.length * 3)));
+
         const oldrestingPose = new THREE.Matrix3();
         const restVolumeArray = new Float32Array(this.tetCount);
         const invMassArray = new Float32Array(this.vertexCount);
         const quatsArray = new Float32Array(this.tetCount*4);
         const restPosesArray = new Float32Array(this.tetCount*4*4);
         //const tetObjectIdArray = new Uint32Array(this.tetCount);
-        //const vertexObjectIdArray = new Uint32Array(this.vertexCount);
+        const vertexObjectIdArray = new Uint32Array(this.vertexCount);
 
         this.tets.forEach((tet,index) => {
             const { v0, v1, v2, v3 } = tet;
@@ -292,7 +344,7 @@ export class FEMPhysics {
             if (invMassArray[index] !== 0.0) {
                 invMassArray[index] = 1 / invMassArray[index];
             }
-            //vertexObjectIdArray[index] = vertex.objectId;
+            vertexObjectIdArray[index] = vertex.objectId;
         });
 
         const tetArray = new Int32Array(this.tetCount * 4);
@@ -303,6 +355,7 @@ export class FEMPhysics {
             tetArray[index*4+2] = v2.id;
             tetArray[index*4+3] = v3.id;
         });
+
 
         this.initialPositionBuffer = instancedArray(positionArray, 'vec3');
         this.positionBuffer = instancedArray(positionArray, 'vec3');
@@ -315,11 +368,38 @@ export class FEMPhysics {
         this.invMassBuffer = instancedArray(invMassArray, 'float');
         this.restVolumeBuffer = instancedArray(restVolumeArray, 'float');
 
+        const triangleStruct = struct( {
+            vertices: { type: 'ivec3' },
+            objectId: { type: 'uint' },
+            ptr: { type: 'int' },
+        } );
+        console.log(triangleStruct);
+        const triangleStride = 8;
+
+        const triangleArrayI32 = new Int32Array(this.triangleCount * triangleStride);
+        const triangleArrayF32 = new Float32Array(triangleArrayI32.buffer);
+        this.triangles.forEach((triangle, index) => {
+            const { v0,v1,v2,objectId } = triangle;
+            triangleArrayI32[index*triangleStride+0] = v0.id;
+            triangleArrayI32[index*triangleStride+1] = v1.id;
+            triangleArrayI32[index*triangleStride+2] = v2.id;
+            triangleArrayI32[index*triangleStride+3] = objectId;
+            triangleArrayI32[index*triangleStride+4] = -1;
+        });
+
+        this.triangleBuffer = instancedArray(triangleArrayI32, triangleStruct);
+        //this.triangleObjectIdBuffer = instancedArray(triangleObjectIdArray, 'uint');
+        //this.trianglePtrBuffer = instancedArray(triangleArray.length, 'int');
+        const hashMapSize = 132049; //
+        this.hashBuffer = instancedArray(hashMapSize, "int").toAtomic();
+
+
         //this.tetObjectIdBuffer = instancedArray(tetObjectIdArray, 'uint');
-        //this.vertexObjectIdBuffer = instancedArray(vertexObjectIdArray, 'uint');
+        this.vertexObjectIdBuffer = instancedArray(vertexObjectIdArray, 'uint');
 
         this.uniforms.vertexCount = uniform(this.vertexCount, "int");
         this.uniforms.tetCount = uniform(this.tetCount, "int");
+        this.uniforms.triangleCount = uniform(this.triangleCount, "int");
         this.uniforms.time = uniform(0, "float");
         this.uniforms.dt = uniform(1, "float");
         this.uniforms.gravity = uniform(new THREE.Vector3(0,-9.81,0), "vec3");
@@ -396,10 +476,38 @@ export class FEMPhysics {
 
         })().compute(this.tetCount);
 
+        this.kernels.clearHashMap = Fn(() => {
+            this.hashBuffer.setAtomic(false);
+
+            If(instanceIndex.greaterThanEqual(uint(hashMapSize)), () => {
+                Return();
+            });
+            this.hashBuffer.element(instanceIndex).assign(-1);
+        })().compute(hashMapSize);
+
+        this.kernels.fillHashMap = Fn(() => {
+            this.hashBuffer.setAtomic(true);
+
+            If(instanceIndex.greaterThanEqual(this.uniforms.triangleCount), () => {
+                Return();
+            });
+            const vertexIds = this.triangleBuffer.element(instanceIndex).get('vertices');
+            const pos0 = this.positionBuffer.element(vertexIds.x).toVar();
+            const pos1 = this.positionBuffer.element(vertexIds.y).toVar();
+            const pos2 = this.positionBuffer.element(vertexIds.z).toVar();
+            const center = pos0.add(pos1).add(pos2).div(3).toVar();
+            const ipos = ivec3(center.div(0.6).floor());
+            const hash = mx_hash_int(ipos.x, ipos.y, ipos.z).modInt(uint(hashMapSize));
+            const storeNode = this.triangleBuffer.element(instanceIndex).get('ptr');
+            atomicAdd(this.hashBuffer.element(hash), instanceIndex, storeNode);
+        })().compute(this.triangleCount);
+
         this.kernels.applyElemPass = Fn(()=>{
+            this.hashBuffer.setAtomic(false);
             If(instanceIndex.greaterThanEqual(this.uniforms.vertexCount), () => {
                 Return();
             });
+            const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
             const influencerPtr = this.influencerPtrBuffer.element(instanceIndex).toVar();
             const ptrStart = influencerPtr.x.toVar();
             const ptrEnd = ptrStart.add(influencerPtr.y).toVar();
@@ -412,8 +520,51 @@ export class FEMPhysics {
                 weight.addAssign(restPosition.w);
             });
             position.divAssign(weight);
-            const currentPosition = this.positionBuffer.element(instanceIndex).toVar();
-            const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
+            //const currentPosition = this.positionBuffer.element(instanceIndex).toVar();
+
+
+            this.prevPositionBuffer.element(instanceIndex).assign(position);
+
+            const cellIndex =  ivec3(position.div(0.6).floor()).sub(1).toConst("cellIndex");
+            const vertexObjectId = this.vertexObjectIdBuffer.element(instanceIndex);
+            const closestDistance = vec4(0,0,0,0.6).toVar();
+            Loop({ start: 0, end: 3, type: 'int', name: 'gx', condition: '<' }, ({gx}) => {
+                Loop({ start: 0, end: 3, type: 'int', name: 'gy', condition: '<' }, ({gy}) => {
+                    Loop({ start: 0, end: 3, type: 'int', name: 'gz', condition: '<' }, ({gz}) => {
+                        const cellX = cellIndex.add(ivec3(gx,gy,gz)).toConst();
+                        const hash = mx_hash_int(cellX.x, cellX.y, cellX.z).modInt(uint(hashMapSize));
+                        const trianglePtr = this.hashBuffer.element(hash).toVar('trianglePtr');
+                        Loop(trianglePtr.notEqual(int(-1)), () => {
+                            const triangleObjectId = this.triangleBuffer.element(trianglePtr).get('objectId');
+                            If(vertexObjectId.notEqual(triangleObjectId), () => {
+                                const vertexIds = this.triangleBuffer.element(trianglePtr).get('vertices');
+                                const v0 = this.positionBuffer.element(vertexIds.x).xyz.toVar();
+                                const v1 = this.positionBuffer.element(vertexIds.y).xyz.toVar();
+                                const v2 = this.positionBuffer.element(vertexIds.z).xyz.toVar();
+                                const center = v0.add(v1).add(v2).div(3);
+                                const tangent = v0.sub(v1);
+                                const bitangent = v0.sub(v2);
+                                const normal = tangent.cross(bitangent).toVar();
+                                const length = normal.length().toVar();
+                                If(length.greaterThan(0.0), () => {
+                                    normal.divAssign(length);
+                                    const distance = position.distance(center);
+                                    //position.addAssign(normal.mul(float(0.4).sub(distance).max(0)));
+                                    const distanceToPlane = normal.dot(position).sub(normal.dot(center));
+                                    If (distanceToPlane.greaterThan(0.0), () => {
+                                        closestDistance.assign(select(distance.lessThan(closestDistance.w), vec4(normal.mul(distanceToPlane.max(0)).mul(1), distance), closestDistance))
+                                        //position.addAssign(normal.mul(distanceToPlane.max(0)).mul(1));
+                                        //prevPosition.addAssign(normal.mul(distanceToPlane.max(0)));
+                                    });
+                                    //position.addAssign(position.sub(center).normalize().mul(float(0.2).sub(distance).max(0)));
+                                });
+                            });
+                            trianglePtr.assign(this.triangleBuffer.element(trianglePtr).get('ptr'));
+                        })
+                    });
+                });
+            });
+            position.addAssign(closestDistance.xyz.mul(0.5));
 
             //position.assign(mix(position, currentPosition, 0.51));
 
@@ -426,6 +577,10 @@ export class FEMPhysics {
             });*/
 
             const { dt, gravity } = this.uniforms;
+            const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.999);
+            position.addAssign(velocity.mul(dt));
+
+
             const F = prevPosition.sub(position);
             const frictionDir = vec3(0).toVar();
             this.colliders.forEach((collider) => {
@@ -437,11 +592,11 @@ export class FEMPhysics {
             position.xyz.addAssign(F.mul(frictionDir).mul(min(1.0, dt.mul(100))));
 
 
-            const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.999);
-            this.prevPositionBuffer.element(instanceIndex).assign(position);
-            const newPosition = position.add(velocity.mul(dt));
-            this.positionBuffer.element(instanceIndex).assign(newPosition);
-        })().compute(this.vertexCount);
+
+
+
+            this.positionBuffer.element(instanceIndex).assign(position);
+        })().debug().compute(this.vertexCount);
 
         this.uniforms.resetVertexStart = uniform(0, "uint");
         this.uniforms.resetVertexCount = uniform(0, "uint");
@@ -576,6 +731,13 @@ export class FEMPhysics {
             await this.renderer.computeAsync(this.kernels.solveElemPass);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
         }
+        await this.renderer.computeAsync(this.kernels.clearHashMap);
+        await this.renderer.computeAsync(this.kernels.fillHashMap);
+
+        //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.hashBuffer.value));
+        //console.log(hashMap);
+        //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.triangleBuffer.value));
+        //console.log(hashMap);
 
         //await this.readPositions();
 
