@@ -46,7 +46,7 @@ class CollisionGeometry {
     async createGeometry() {
         const [map, aoMap, normalMap, roughnessMap] = await Promise.all([loadTexture(colorMapFile), loadTexture(aoMapFile), loadTexture(normalMapFile), loadTexture(roughnessMapFile)]);
 
-        const slope = 0.1;
+        const slope = 0.2;
         const stepLength = 5;
         const stepHeight = 3;
         const stepRadius = 0.5;
@@ -188,14 +188,14 @@ class CollisionGeometry {
         floor.frustumCulled = false;
         floor.position.set(0, stepHeight * steps * 0.5, -stepLength * steps * 0.5);
         this.floor = floor;
-        //this.object.add(floor);
 
         /*const ball = new THREE.Mesh(new THREE.SphereGeometry(1), material);
         ball.position.set(0,5,8);
         ball.castShadow = true;
         this.object.add(ball);*/
 
-        /*
+
+        this.object.add(floor);
         const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
             const posZDiv = position.z.mul(0.2);
@@ -214,14 +214,14 @@ class CollisionGeometry {
 
             return vec4( normal, dist );
         };
-        this.physics.addCollider(collider);*/
+        this.physics.addCollider(collider);
 
 
-        const collider = (positionImmutable) => {
+        /*const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
             return vec4( 0,1,0, position.y );
         };
-        this.physics.addCollider(collider);
+        this.physics.addCollider(collider);*/
     }
 
     update(delta, elapsed) {

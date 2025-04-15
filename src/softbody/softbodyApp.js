@@ -165,6 +165,11 @@ class SoftbodyApp {
             this.scene.add(softbody.object);
             this.softbodies.push(softbody);
         }
+        /*for (let i=0; i<this.softbodyCount; i++) {
+            const softbody = this.physics.addInstance(i % 20 === 19 ? virusGeometry : skullGeometry);
+            this.scene.add(softbody.object);
+            this.softbodies.push(softbody);
+        }*/
 
         this.collisionGeometry = new CollisionGeometry(this.physics);
         await this.collisionGeometry.createGeometry();
@@ -173,6 +178,13 @@ class SoftbodyApp {
         this.collisionGeometry.floor.material.fogNode = fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(10,50)); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
 
         await this.physics.bake();
+
+        for (let i=0; i<this.softbodyCount; i++) {
+            const softbody = this.softbodies[i];
+            await softbody.initPos();
+            softbody.spawned = false;
+        }
+
 
         this.tetVisualizer = new TetVisualizer(this.physics);
         this.tetVisualizer.object.visible = false;
@@ -229,7 +241,7 @@ class SoftbodyApp {
         if (this.lastSoftbody > 1.0) {
             const nextSoftbody = this.softbodies.find(sb => sb.outOfSight);
             if (nextSoftbody) {
-                this.lastSoftbody = Math.random() * -0.0;
+                this.lastSoftbody = Math.random() * -1.0;
                 await nextSoftbody.reset();
                 nextSoftbody.object.visible = !this.wireframe;
             }

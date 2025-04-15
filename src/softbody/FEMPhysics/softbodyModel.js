@@ -313,8 +313,8 @@ export class SoftbodyModel {
     }*/
 
     async reset() {
-        const scale = 3; //1.0 + Math.random() * 2;
-        const position = new THREE.Vector3((Math.random() - 0.5) * 40, 3 + 2 * scale + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
+        const scale = 2.0 + Math.random() * 1;
+        const position = new THREE.Vector3((Math.random() - 0.5) * 20, 3 + 2 * scale + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
         position.z -= 5 * 5;
         position.y += 5 * 3;
         const velocity = new THREE.Vector3(0,-0.005,0.03);
@@ -322,6 +322,15 @@ export class SoftbodyModel {
         this.age = 0;
         this.object.visible = true;
         this.spawned = true;
+    }
+    async initPos() {
+        const scale = 2.0 + Math.random() * 1;
+        const position = new THREE.Vector3((Math.random() - 0.5) * 4000 + 4000, 4000, (Math.random() - 0.5) * 4000);
+        const velocity = new THREE.Vector3(0,-0.005,0.00);
+        await this.physics.resetObject(this.id, position, scale, velocity);
+        this.age = 0;
+        this.object.visible = true;
+        this.spawned = false;
     }
 
     async update(interval) {

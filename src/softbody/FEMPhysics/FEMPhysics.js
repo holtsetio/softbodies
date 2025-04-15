@@ -20,11 +20,12 @@ import {
     If,
     Loop,
     Break,
-    normalize, Return, uniform, select, time, mix, min, uniformArray, ivec3, atomicAdd, uvec3, struct
+    normalize, Return, uniform, select, time, mix, min, uniformArray, ivec3, atomicAdd, atomicStore, atomicFunc, uvec3, struct
 } from "three/tsl";
 import {mx_hash_int, mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
 import {SoftbodyModel} from "./softbodyModel";
 
+console.log(atomicAdd, atomicFunc, 2);
 export const murmurHash13 = /*#__PURE__*/ Fn( ( [ src_immutable ] ) => {
     const src = uvec3( src_immutable ).toVar();
     const M = uint( int( 0x5bd1e995 ) );
@@ -289,11 +290,13 @@ export class FEMPhysics {
         const oldrestingPose = new THREE.Matrix3();
         const restVolumeArray = new Float32Array(this.tetCount);
         const invMassArray = new Float32Array(this.vertexCount);
+        const radiusArray = new Float32Array(this.tetCount);
         const quatsArray = new Float32Array(this.tetCount*4);
         const restPosesArray = new Float32Array(this.tetCount*4*4);
-        //const tetObjectIdArray = new Uint32Array(this.tetCount);
+        const tetObjectIdArray = new Uint32Array(this.tetCount);
         const vertexObjectIdArray = new Uint32Array(this.vertexCount);
 
+        let maxR = 0;
         this.tets.forEach((tet,index) => {
             const { v0, v1, v2, v3 } = tet;
             [v0, v1, v2, v3].forEach((vertex,subindex) => {
@@ -324,8 +327,13 @@ export class FEMPhysics {
             quatsArray[index*4+1] = 0;
             quatsArray[index*4+2] = 0;
             quatsArray[index*4+3] = 1;
-            //tetObjectIdArray[index] = tet.objectId;
+            tetObjectIdArray[index] = tet.objectId;
+
+            const radius = (Math.pow((3/4) * V / Math.PI, 1/3));
+            radiusArray[index] = radius;
+            maxR = Math.max(maxR, radius);
         });
+        console.log("maxRadius", maxR);
 
         const positionArray = new Float32Array(this.vertexCount * 3);
         const influencerPtrArray = new Uint32Array(this.vertexCount * 2); // x: ptr, y: length
@@ -367,6 +375,9 @@ export class FEMPhysics {
         this.quatsBuffer = instancedArray(quatsArray, 'vec4');
         this.invMassBuffer = instancedArray(invMassArray, 'float');
         this.restVolumeBuffer = instancedArray(restVolumeArray, 'float');
+        this.radiusBuffer = instancedArray(radiusArray, 'float');
+        this.tetPtrBuffer = instancedArray(this.tets.length, "int");
+        this.centroidBuffer = instancedArray(this.tets.length, "vec3");
 
         const triangleStruct = struct( {
             vertices: { type: 'ivec3' },
@@ -391,10 +402,11 @@ export class FEMPhysics {
         //this.triangleObjectIdBuffer = instancedArray(triangleObjectIdArray, 'uint');
         //this.trianglePtrBuffer = instancedArray(triangleArray.length, 'int');
         const hashMapSize = 132049; //
+        const hashingCellSize = 0.36
         this.hashBuffer = instancedArray(hashMapSize, "int").toAtomic();
 
 
-        //this.tetObjectIdBuffer = instancedArray(tetObjectIdArray, 'uint');
+        this.tetObjectIdBuffer = instancedArray(tetObjectIdArray, 'uint');
         this.vertexObjectIdBuffer = instancedArray(vertexObjectIdArray, 'uint');
 
         this.uniforms.vertexCount = uniform(this.vertexCount, "int");
@@ -405,6 +417,7 @@ export class FEMPhysics {
         this.uniforms.gravity = uniform(new THREE.Vector3(0,-9.81,0), "vec3");
 
         this.kernels.solveElemPass = Fn(() => {
+            this.hashBuffer.setAtomic(true);
             If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
                 Return();
             });
@@ -424,11 +437,15 @@ export class FEMPhysics {
             const ref3 = this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).xyz.toVar();
 
             // Get the centroids
-            const curCentroid = pos0.add(pos1).add(pos2).add(pos3).mul(0.25);
-            const lastRestCentroid = ref0.add(ref1).add(ref2).add(ref3).mul(0.25);
+            const curCentroid = pos0.add(pos1).add(pos2).add(pos3).mul(0.25).toVar();
+            const lastRestCentroid = ref0.add(ref1).add(ref2).add(ref3).mul(0.25).toVar();
 
+            console.log("LOL", curCentroid);
+            console.log("LOL", curCentroid.uuid);
             // Center the Deformed Tetrahedron
             pos0.subAssign(curCentroid);
+
+            console.log("LOL2", curCentroid.uuid);
             pos1.subAssign(curCentroid);
             pos2.subAssign(curCentroid);
             pos3.subAssign(curCentroid);
@@ -463,18 +480,69 @@ export class FEMPhysics {
             const volume  = this.restVolumeBuffer.element(instanceIndex).toVar();
             const relativeQuat = normalize(quat_mult(newQuat, quat_conj(prevQuat)));
 
-            // Rotate the undeformed tetrahedron by the deformed's rotation
+            // Rotate the undeformed tetrahedron by the deformed's rotationf
             ref0.assign(Rotate(ref0, relativeQuat).add(curCentroid));
             ref1.assign(Rotate(ref1, relativeQuat).add(curCentroid));
             ref2.assign(Rotate(ref2, relativeQuat).add(curCentroid));
             ref3.assign(Rotate(ref3, relativeQuat).add(curCentroid));
 
+            this.centroidBuffer.element(instanceIndex).assign(curCentroid);
             this.restPosesBuffer.element(instanceIndex.mul(4)).assign(vec4(ref0, volume));
             this.restPosesBuffer.element(instanceIndex.mul(4).add(1)).assign(vec4(ref1, volume));
             this.restPosesBuffer.element(instanceIndex.mul(4).add(2)).assign(vec4(ref2, volume));
             this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).assign(vec4(ref3, volume));
 
-        })().compute(this.tetCount);
+
+            const ipos = ivec3(curCentroid.div(hashingCellSize).floor());
+            const hash = mx_hash_int(ipos.x, ipos.y, ipos.z).mod(uint(hashMapSize)).toVar("hash");
+            //const storeNode = this.tetPtrBuffer.element(instanceIndex);
+            //const prev = atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex, 0));
+            this.tetPtrBuffer.element(instanceIndex).assign(atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex));
+
+        })().debug().compute(this.tetCount);
+
+        this.kernels.solveCollisions = Fn(() => {
+            this.hashBuffer.setAtomic(false);
+            If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
+                Return();
+            });
+            const centroid = this.centroidBuffer.element(instanceIndex).toVar("centroid");
+            const position = centroid.toVar("pos");
+            const radius = this.radiusBuffer.element(instanceIndex).toVar();
+
+            const cellIndex =  ivec3(position.div(hashingCellSize).floor()).sub(1).toConst("cellIndex");
+            const objectId = this.tetObjectIdBuffer.element(instanceIndex);
+
+            Loop({ start: 0, end: 3, type: 'int', name: 'gx', condition: '<' }, ({gx}) => {
+                Loop({ start: 0, end: 3, type: 'int', name: 'gy', condition: '<' }, ({gy}) => {
+                    Loop({ start: 0, end: 3, type: 'int', name: 'gz', condition: '<' }, ({gz}) => {
+                        const cellX = cellIndex.add(ivec3(gx,gy,gz)).toConst();
+                        const hash = mx_hash_int(cellX.x, cellX.y, cellX.z).mod(uint(hashMapSize));
+                        const tetPtr = this.hashBuffer.element(hash).toVar('tetPtr');
+                        Loop(tetPtr.notEqual(int(-1)), () => {
+                            const objectId2 = this.tetObjectIdBuffer.element(tetPtr);
+                            If(objectId.notEqual(objectId2), () => {
+                                const centroid_2 = this.centroidBuffer.element(tetPtr).toVar("centroid2");
+                                const radius2 = this.radiusBuffer.element(tetPtr).toVar();
+
+                                const minDist = radius.add(radius2).mul(3).mul(1.2);
+                                const dist = centroid.distance(centroid_2);
+                                const dir = centroid.sub(centroid_2).div(dist);
+                                position.addAssign(dir.mul(minDist.sub(dist).max(0)).mul(0.5));
+                            });
+                            tetPtr.assign(this.tetPtrBuffer.element(tetPtr));
+                        })
+                    });
+                });
+            });
+            const diff = position.sub(centroid);
+
+            this.restPosesBuffer.element(instanceIndex.mul(4)).xyz.addAssign(diff);
+            this.restPosesBuffer.element(instanceIndex.mul(4).add(1)).xyz.addAssign(diff);
+            this.restPosesBuffer.element(instanceIndex.mul(4).add(2)).xyz.addAssign(diff);
+            this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).xyz.addAssign(diff);
+
+        })().debug().compute(this.tetCount);
 
         this.kernels.clearHashMap = Fn(() => {
             this.hashBuffer.setAtomic(false);
@@ -499,7 +567,7 @@ export class FEMPhysics {
             const ipos = ivec3(center.div(0.6).floor());
             const hash = mx_hash_int(ipos.x, ipos.y, ipos.z).modInt(uint(hashMapSize));
             const storeNode = this.triangleBuffer.element(instanceIndex).get('ptr');
-            atomicAdd(this.hashBuffer.element(hash), instanceIndex, storeNode);
+            atomicStore(this.hashBuffer.element(hash), instanceIndex, storeNode);
         })().compute(this.triangleCount);
 
         this.kernels.applyElemPass = Fn(()=>{
@@ -525,6 +593,7 @@ export class FEMPhysics {
 
             this.prevPositionBuffer.element(instanceIndex).assign(position);
 
+            /*
             const cellIndex =  ivec3(position.div(0.6).floor()).sub(1).toConst("cellIndex");
             const vertexObjectId = this.vertexObjectIdBuffer.element(instanceIndex);
             const closestDistance = vec4(0,0,0,0.6).toVar();
@@ -564,7 +633,7 @@ export class FEMPhysics {
                     });
                 });
             });
-            position.addAssign(closestDistance.xyz.mul(0.5));
+            position.addAssign(closestDistance.xyz.mul(0.5));*/
 
             //position.assign(mix(position, currentPosition, 0.51));
 
@@ -728,16 +797,22 @@ export class FEMPhysics {
             this.time += timePerStep;
             this.timeSinceLastStep -= timePerStep;
             this.uniforms.time.value = this.time;
+            await this.renderer.computeAsync(this.kernels.clearHashMap);
             await this.renderer.computeAsync(this.kernels.solveElemPass);
+            await this.renderer.computeAsync(this.kernels.solveCollisions);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
         }
-        await this.renderer.computeAsync(this.kernels.clearHashMap);
-        await this.renderer.computeAsync(this.kernels.fillHashMap);
+
+        //await this.renderer.computeAsync(this.kernels.fillHashMap);
 
         //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.hashBuffer.value));
         //console.log(hashMap);
         //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.triangleBuffer.value));
         //console.log(hashMap);
+        if (this.frameNum > 1) {
+            //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.tetPtrBuffer.value));
+            //console.log(hashMap);
+        }
 
         //await this.readPositions();
 
