@@ -525,7 +525,7 @@ export class FEMPhysics {
                                 const centroid_2 = this.centroidBuffer.element(tetPtr).toVar("centroid2");
                                 const radius2 = this.radiusBuffer.element(tetPtr).toVar();
 
-                                const minDist = radius.add(radius2).mul(3).mul(1.2);
+                                const minDist = radius.add(radius2).mul(3).mul(1.0);
                                 const dist = centroid.distance(centroid_2);
                                 const dir = centroid.sub(centroid_2).div(dist);
                                 position.addAssign(dir.mul(minDist.sub(dist).max(0)).mul(0.5));
@@ -649,7 +649,6 @@ export class FEMPhysics {
             const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.999);
             position.addAssign(velocity.mul(dt));
 
-
             const F = prevPosition.sub(position);
             const frictionDir = vec3(0).toVar();
             this.colliders.forEach((collider) => {
@@ -664,6 +663,42 @@ export class FEMPhysics {
 
 
 
+            this.positionBuffer.element(instanceIndex).assign(position);
+        })().debug().compute(this.vertexCount);
+
+        this.kernels.solveCollisionsVertex = Fn(()=>{
+            this.hashBuffer.setAtomic(false);
+            If(instanceIndex.greaterThanEqual(this.uniforms.vertexCount), () => {
+                Return();
+            });
+            const position = this.positionBuffer.element(instanceIndex).toVar();
+
+            const cellIndex =  ivec3(position.div(hashingCellSize).floor()).sub(1).toConst("cellIndex");
+            const diff = vec3(0).toVar();
+            const objectId = this.vertexObjectIdBuffer.element(instanceIndex);
+            Loop({ start: 0, end: 3, type: 'int', name: 'gx', condition: '<' }, ({gx}) => {
+                Loop({ start: 0, end: 3, type: 'int', name: 'gy', condition: '<' }, ({gy}) => {
+                    Loop({ start: 0, end: 3, type: 'int', name: 'gz', condition: '<' }, ({gz}) => {
+                        const cellX = cellIndex.add(ivec3(gx,gy,gz)).toConst();
+                        const hash = mx_hash_int(cellX.x, cellX.y, cellX.z).mod(uint(hashMapSize));
+                        const tetPtr = this.hashBuffer.element(hash).toVar('tetPtr');
+                        Loop(tetPtr.notEqual(int(-1)), () => {
+                            const objectId2 = this.tetObjectIdBuffer.element(tetPtr);
+                            If(objectId.notEqual(objectId2), () => {
+                                const centroid_2 = this.centroidBuffer.element(tetPtr).toVar("centroid2");
+                                const radius2 = this.radiusBuffer.element(tetPtr).toVar();
+
+                                const minDist = radius2.mul(3).mul(1.0);
+                                const dist = position.distance(centroid_2);
+                                const dir = position.sub(centroid_2).div(dist);
+                                position.addAssign(dir.mul(minDist.sub(dist).max(0)).mul(0.95));
+                            });
+                            tetPtr.assign(this.tetPtrBuffer.element(tetPtr));
+                        })
+                    });
+                });
+            });
+            //position.addAssign(diff);
             this.positionBuffer.element(instanceIndex).assign(position);
         })().debug().compute(this.vertexCount);
 
@@ -801,6 +836,7 @@ export class FEMPhysics {
             await this.renderer.computeAsync(this.kernels.solveElemPass);
             await this.renderer.computeAsync(this.kernels.solveCollisions);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
+            //await this.renderer.computeAsync(this.kernels.solveCollisionsVertex);
         }
 
         //await this.renderer.computeAsync(this.kernels.fillHashMap);

@@ -38,6 +38,7 @@ import normalMapFileSkull from './geometry/textures/skullNormal.png';
 import roughnessMapFileSkull from './geometry/textures/skullRoughness.jpg';
 import {conf} from "./conf";
 import {Info} from "./info";
+import {generateTube} from "./geometry/loadModel";
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
@@ -73,7 +74,7 @@ class SoftbodyApp {
 
     softbodies = [];
 
-    softbodyCount = 15;
+    softbodyCount = 150;
 
     lastSoftbody = 0;
 
@@ -124,6 +125,9 @@ class SoftbodyApp {
 
         this.physics = new FEMPhysics(this.renderer);
         //this.physics.addObject(SoftbodyModel);
+
+        const tube = generateTube();
+        const tubeGeometry = this.physics.addGeometry(tube)
         const virusGeometry = this.physics.addGeometry(virus);
         const skullGeometry = this.physics.addGeometry(skull);
         //const skullGeometry = this.physics.addGeometry(loadModel(skullModel,skullObj));
@@ -161,7 +165,7 @@ class SoftbodyApp {
         }
 
         for (let i=0; i<this.softbodyCount; i++) {
-            const softbody = this.physics.addInstance(i % 4 === 0 ? skullGeometry : virusGeometry);
+            const softbody = this.physics.addInstance(tubeGeometry); //i % 4 === 0 ? skullGeometry : virusGeometry);
             this.scene.add(softbody.object);
             this.softbodies.push(softbody);
         }

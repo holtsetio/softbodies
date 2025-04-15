@@ -2,17 +2,7 @@ import * as THREE from "three/webgpu";
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {OBJLoader} from "three/examples/jsm/loaders/OBJLoader";
 
-const processMsh = (msh) => {
-    const vertexRegex = /\$Nodes\n\d+\n(.+)\$EndNodes/gms;
-    const vertexMatch = vertexRegex.exec(msh);
-    const vertexRepRegex = /\d+\s(.+)\n/gm;
-    const tetVertsRaw = vertexMatch['1'].replace(vertexRepRegex, '$1 ').trim().split(' ').map(v => Number(v)).map(v=>Math.round(v*10000)/10000);
-
-    const tetRegex = /\$Elements\n\d+\n(.+)\$EndElements/gms;
-    const tetMatch = tetRegex.exec(msh);
-    const tetRepRegex = /.+(\s\d+\s\d+\s\d+\s\d+)\s\n/gm;
-    const tetIdsRaw = tetMatch['1'].replace(tetRepRegex, '$1').trim().split(' ').map(v => Number(v));
-
+const processTetGeometry = (tetVertsRaw, tetIdsRaw) => {
     let vertices = [];
     let tets = [];
     const addVertex = (x,y,z) => {
@@ -58,11 +48,20 @@ const processMsh = (msh) => {
     return { tetVerts, tetIds, vertices, tets };
 }
 
+const processMsh = (msh) => {
+    const vertexRegex = /\$Nodes\n\d+\n(.+)\$EndNodes/gms;
+    const vertexMatch = vertexRegex.exec(msh);
+    const vertexRepRegex = /\d+\s(.+)\n/gm;
+    const tetVertsRaw = vertexMatch['1'].replace(vertexRepRegex, '$1 ').trim().split(' ').map(v => Number(v)).map(v => Math.round(v * 10000) / 10000);
 
-const processObj = (obj, tets) => {
-    const objectRaw = new OBJLoader().parse(obj);
-    const geometry = BufferGeometryUtils.mergeVertices(objectRaw.children[0].geometry);
+    const tetRegex = /\$Elements\n\d+\n(.+)\$EndElements/gms;
+    const tetMatch = tetRegex.exec(msh);
+    const tetRepRegex = /.+(\s\d+\s\d+\s\d+\s\d+)\s\n/gm;
+    const tetIdsRaw = tetMatch['1'].replace(tetRepRegex, '$1').trim().split(' ').map(v => Number(v));
+    return processTetGeometry(tetVertsRaw, tetIdsRaw);
+}
 
+const processGeometry = (geometry, tets) => {
     const positionAttribute = geometry.getAttribute("position");
     const vertexCount = positionAttribute.count;
     const positionArray = positionAttribute.array;
@@ -132,6 +131,12 @@ const processObj = (obj, tets) => {
     return processedModel;
 };
 
+const processObj = (obj, tets) => {
+    const objectRaw = new OBJLoader().parse(obj);
+    const geometry = BufferGeometryUtils.mergeVertices(objectRaw.children[0].geometry);
+    return processGeometry(geometry, tets);
+}
+
 const print = (model) => {
     let str = "export default model = { \n";
     Object.keys(model).forEach((key) => {
@@ -150,3 +155,37 @@ export const loadModel = (msh, obj) => {
     print(model);
     return model;
 };
+
+export const generateTube = () => {
+    const radius = 0.25;
+    const length = 2.5*10*0.5;
+    const segments = 5*10*0.5;
+    const tetVertsRaw = [];
+    const tetIdsRaw = [];
+
+    const rr = radius;
+    for (let x=0; x<=segments; x++) {
+        const px = x * (length/segments) - length * 0.5;
+        tetVertsRaw.push(px, rr, -rr);
+        tetVertsRaw.push(px, rr, rr);
+        tetVertsRaw.push(px, -rr, rr);
+        tetVertsRaw.push(px, -rr, -rr);
+    }
+    for (let x=0; x<segments; x++) {
+        const v = (n) => x*4+n;
+        tetIdsRaw.push(v(1), v(4), v(8), v(7));
+        tetIdsRaw.push(v(1), v(8), v(5), v(7));
+        tetIdsRaw.push(v(1), v(5), v(6), v(7));
+        tetIdsRaw.push(v(1), v(6), v(2), v(7));
+        tetIdsRaw.push(v(1), v(2), v(3), v(7));
+        tetIdsRaw.push(v(1), v(3), v(4), v(7));
+    }
+
+    const geometry = new THREE.CylinderGeometry( radius, radius, length, 8, segments );
+    geometry.rotateZ(Math.PI/2);
+    const { tetVerts, tetIds, vertices, tets } = processTetGeometry(tetVertsRaw, tetIdsRaw);
+    const { attachedTets, baryCoords, normals, uvs, positions, indices} = processGeometry(geometry, tets);
+    const model = { tetVerts, tetIds, attachedTets, baryCoords, normals, uvs, positions, indices };
+    print(model);
+    return model;
+}

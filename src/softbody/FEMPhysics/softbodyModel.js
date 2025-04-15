@@ -313,7 +313,7 @@ export class SoftbodyModel {
     }*/
 
     async reset() {
-        const scale = 2.0 + Math.random() * 1;
+        const scale = 3; //2.0 + Math.random() * 1;
         const position = new THREE.Vector3((Math.random() - 0.5) * 20, 3 + 2 * scale + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
         position.z -= 5 * 5;
         position.y += 5 * 3;

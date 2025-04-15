@@ -195,6 +195,7 @@ class CollisionGeometry {
         this.object.add(ball);*/
 
 
+        /*
         this.object.add(floor);
         const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
@@ -214,14 +215,14 @@ class CollisionGeometry {
 
             return vec4( normal, dist );
         };
-        this.physics.addCollider(collider);
+        this.physics.addCollider(collider);*/
 
 
-        /*const collider = (positionImmutable) => {
+        const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
             return vec4( 0,1,0, position.y );
         };
-        this.physics.addCollider(collider);*/
+        this.physics.addCollider(collider);
     }
 
     update(delta, elapsed) {
