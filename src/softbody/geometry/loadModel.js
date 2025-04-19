@@ -138,13 +138,14 @@ const processObj = (obj, tets) => {
 }
 
 const print = (model) => {
-    let str = "export default model = { \n";
+    let str = "const model = { \n";
     Object.keys(model).forEach((key) => {
         str += " " + key + ": [";
         str += model[key].join(",")
         str += "],\n"
     });
-    str += "}";
+    str += "};\n";
+    str += "export default model;"
     console.log(str);
 }
 

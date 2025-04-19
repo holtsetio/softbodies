@@ -27,11 +27,12 @@ import CollisionGeometry from "./collisionGeometry";
 
 import virus from './geometry/virus';
 import skull from './geometry/skull3';
+import icosphere from './geometry/icosphere';
 //import skullModel from 'bundle-text:./geometry/skull4.msh';
 //import skullObj from 'bundle-text:./geometry/skull.obj';
 import {loadModelWithGeo} from "./geometry/loadModel";
-import sphereModel from 'bundle-text:./geometry/icosphere_hollow.msh';
-import sphereObj from 'bundle-text:./geometry/icosphere.obj';
+//import sphereModel from 'bundle-text:./geometry/icosphere_hollow.msh';
+//import sphereObj from 'bundle-text:./geometry/icosphere.obj';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import normalMapFileVirus from './geometry/textures/virus_normal.png';
@@ -57,6 +58,7 @@ import alienSpecularFile from './geometry/textures/Alien_Muscle_001_SPEC.jpg';
 import {conf} from "./conf";
 import {Info} from "./info";
 import {generateTube} from "./geometry/loadModel";
+import AtomicFunctionNode from "three/src/nodes/gpgpu/AtomicFunctionNode";
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
@@ -103,6 +105,27 @@ class SoftbodyApp {
     }
 
     async init(progressCallback) {
+        // monkeypatch until AtomicFunctionNode is fixed in three.js
+        const patchedFunction = function generate( builder ) {
+            const method = this.method;
+            const type = this.getNodeType( builder );
+            const inputType = this.getInputType( builder );
+            const a = this.pointerNode;
+            const b = this.valueNode;
+            const params = [];
+            params.push( `&${ a.build( builder, inputType ) }` );
+            if ( b !== null ) {
+                params.push( b.build( builder, inputType ) );
+            }
+            const methodSnippet = `${ builder.getMethod( method, type ) }( ${ params.join( ', ' ) } )`;
+            if ( b !== null && method !== "atomicExchange") {
+                builder.addLineFlowCode( methodSnippet, this );
+            }
+            return methodSnippet;
+        };
+        AtomicFunctionNode.prototype.generate = (patchedFunction);
+        // monkeypatch end
+
         conf.init();
         this.info = new Info();
         this.time = 0;
@@ -144,8 +167,8 @@ class SoftbodyApp {
         this.physics = new FEMPhysics(this.renderer);
         //this.physics.addObject(SoftbodyModel);
 
-        const icosphereGeo = BufferGeometryUtils.mergeVertices(new THREE.IcosahedronGeometry(1,4));
-        const icosphere = loadModelWithGeo(sphereModel, icosphereGeo);
+        //const icosphereGeo = BufferGeometryUtils.mergeVertices(new THREE.IcosahedronGeometry(1,4));
+        //const icosphere = loadModelWithGeo(sphereModel, icosphereGeo);
         const tube = generateTube();
         const tubeGeometry = this.physics.addGeometry(tube)
         const virusGeometry = this.physics.addGeometry(virus);
@@ -188,7 +211,6 @@ class SoftbodyApp {
                 return vec3(0,0.8,1);
             })();
             //sphereGeometry.material.thicknessNode = float(1);
-            console.log(sphereGeometry.material);
         }
         {
             const mapFiles = [normalMapFileVirus, roughnessMapFileVirus];

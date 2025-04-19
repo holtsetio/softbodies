@@ -26,7 +26,6 @@ import {mx_hash_int, mx_perlin_noise_float} from "three/src/nodes/materialx/lib/
 import {SoftbodyModel} from "./softbodyModel";
 import {conf} from "../conf";
 
-console.log(atomicAdd, atomicFunc, 2);
 export const murmurHash13 = /*#__PURE__*/ Fn( ( [ src_immutable ] ) => {
     const src = uvec3( src_immutable ).toVar();
     const M = uint( int( 0x5bd1e995 ) );
@@ -277,7 +276,6 @@ export class FEMPhysics {
     async bake() {
         console.log(this.vertexCount + " vertices");
         console.log(this.tetCount + " tetrahedrons");
-        console.log(this.triangleCount + " triangles");
 
         let length = 0;
         this.triangles.forEach(triangle => {
@@ -286,7 +284,6 @@ export class FEMPhysics {
             length += v1.distanceTo(v2);
             length += v2.distanceTo(v0);
         })
-        console.log("avg triangleSide: " + (length / (this.triangles.length * 3)));
 
         const oldrestingPose = new THREE.Matrix3();
         const restVolumeArray = new Float32Array(this.tetCount);
@@ -393,7 +390,6 @@ export class FEMPhysics {
             objectId: { type: 'uint' },
             ptr: { type: 'int' },
         } );
-        console.log(triangleStruct);
         const triangleStride = 8;
 
         const triangleArrayI32 = new Int32Array(this.triangleCount * triangleStride);
@@ -452,12 +448,8 @@ export class FEMPhysics {
             const curCentroid = pos0.add(pos1).add(pos2).add(pos3).mul(0.25).toVar();
             const lastRestCentroid = ref0.add(ref1).add(ref2).add(ref3).mul(0.25).toVar();
 
-            console.log("LOL", curCentroid);
-            console.log("LOL", curCentroid.uuid);
             // Center the Deformed Tetrahedron
             pos0.subAssign(curCentroid);
-
-            console.log("LOL2", curCentroid.uuid);
             pos1.subAssign(curCentroid);
             pos2.subAssign(curCentroid);
             pos3.subAssign(curCentroid);
@@ -571,7 +563,7 @@ export class FEMPhysics {
             });
 
 
-        })().debug().compute(this.tetCount);
+        })().compute(this.tetCount);
 
         this.kernels.clearHashMap = Fn(() => {
             this.hashBuffer.setAtomic(false);
