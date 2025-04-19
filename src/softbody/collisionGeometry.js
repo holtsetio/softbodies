@@ -16,7 +16,7 @@ import {
     floor,
     Fn,
     attribute,
-    varying, transformNormalToView, smoothstep, positionView, positionWorld
+    varying, transformNormalToView, smoothstep, positionView, positionWorld, step
 } from "three/tsl";
 
 import colorMapFile from '../assets/rock_0005_color_1k.jpg';
@@ -195,7 +195,7 @@ class CollisionGeometry {
         this.object.add(ball);*/
 
 
-        /*
+/*
         this.object.add(floor);
         const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
@@ -218,11 +218,37 @@ class CollisionGeometry {
         this.physics.addCollider(collider);*/
 
 
-        const collider = (positionImmutable) => {
+        /*const collider = (positionImmutable) => {
             const position = vec3(positionImmutable).toVar();
             return vec4( 0,1,0, position.y );
         };
+        this.physics.addCollider(collider);*/
+
+        /*
+        const collider = (positionImmutable) => {
+            const position = vec3(positionImmutable).toVar();
+            position.addAssign(vec3(0,-20,10));
+            const normal = position.normalize().negate();
+            const length = position.length();
+            const dist = float(25).sub(length).mul(step(100, length).oneMinus());
+            return vec4( normal, dist );
+        };
+        this.physics.addCollider(collider);*/
+
+
+        const collider = (positionImmutable) => {
+            const position = vec3(positionImmutable).toVar();
+            //position.addAssign(vec3(0,-20,10));
+            const normal = position.normalize();
+            const length = position.length();
+            const dist = length.sub(5); //float(25).sub(length).mul(step(100, length).oneMinus());
+            return vec4( normal, dist );
+        };
         this.physics.addCollider(collider);
+        const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(5, 3), new THREE.MeshStandardNodeMaterial({color: new THREE.Color(0,0,0), metalness: 0.9, roughness:0.1}));
+        ball.castShadow = true;
+        ball.receiveShadow = true;
+        this.object.add(ball);
     }
 
     update(delta, elapsed) {

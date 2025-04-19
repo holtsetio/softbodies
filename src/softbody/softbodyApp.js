@@ -17,8 +17,8 @@ import {
     normalWorld,
     pmremTexture,
     rangeFogFactor,
-    smoothstep,
-    varying,
+    smoothstep, texture, uv, normalMap,
+    varying, vec2,
     vec3
 } from "three/tsl";
 import {FEMPhysics} from "./FEMPhysics/FEMPhysics";
@@ -29,13 +29,31 @@ import virus from './geometry/virus';
 import skull from './geometry/skull3';
 //import skullModel from 'bundle-text:./geometry/skull4.msh';
 //import skullObj from 'bundle-text:./geometry/skull.obj';
-//import {loadModel, processObj} from "./geometry/loadModel";
+import {loadModelWithGeo} from "./geometry/loadModel";
+import sphereModel from 'bundle-text:./geometry/icosphere_hollow.msh';
+import sphereObj from 'bundle-text:./geometry/icosphere.obj';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import normalMapFileVirus from './geometry/textures/virus_normal.png';
 import roughnessMapFileVirus from './geometry/textures/virus_roughness.jpg';
 import colorMapFileSkull from './geometry/textures/skullColor.jpg';
 import normalMapFileSkull from './geometry/textures/skullNormal.png';
 import roughnessMapFileSkull from './geometry/textures/skullRoughness.jpg';
+
+import normalMapFileSnake from './geometry/textures/fabrics_0066_normal_opengl_1k.png';
+import roughnessMapFileSnake from './geometry/textures/fabrics_0066_roughness_1k.jpg';
+import colorMapFileSnake from './geometry/textures/fabrics_0066_color_1k.jpg';
+import aoMapFileSnake from './geometry/textures/fabrics_0066_ao_1k.jpg';
+
+import earthColorFile from './geometry/textures/2k_earth_daymap.jpg';
+import earthNormalFile from './geometry/textures/2k_earth_normal_map.png';
+import earthSpecularFile from './geometry/textures/2k_earth_specular_map.png';
+
+import alienColorFile from './geometry/textures/Alien_Muscle_001_COLOR.jpg';
+import alienNormalFile from './geometry/textures/Alien_Muscle_001_NORM.jpg';
+import alienAoFile from './geometry/textures/Alien_Muscle_001_OCC.jpg';
+import alienSpecularFile from './geometry/textures/Alien_Muscle_001_SPEC.jpg';
+
 import {conf} from "./conf";
 import {Info} from "./info";
 import {generateTube} from "./geometry/loadModel";
@@ -74,7 +92,7 @@ class SoftbodyApp {
 
     softbodies = [];
 
-    softbodyCount = 150;
+    softbodyCount = 300;
 
     lastSoftbody = 0;
 
@@ -97,23 +115,23 @@ class SoftbodyApp {
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.enablePan = false;
+        /*this.controls.enablePan = false;
         this.controls.minDistance = 20;
-        this.controls.maxDistance = 60;
+        this.controls.maxDistance = 60;*/
 
         await progressCallback(0.1)
 
         const hdriTexture = await loadHdr(hdri);
         //this.scene.environment = hdriTexture;d
         this.scene.backgroundNode = pmremTexture(hdriTexture, normalWorld);
-        this.scene.environmentNode = pmremTexture(hdriTexture, normalWorld); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
+        this.scene.environmentNode = pmremTexture(hdriTexture, normalWorld).mul(0.5); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
         //this.scene.fogNode = Fn(() => { return fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(30,50)); })() ; //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
         //this.scene.backgroundBlurriness = 0.1;
         //this.scene.backgroundRotation.set(0, Math.PI, 0);
         //this.scene.environmentRotation.set(0, Math.PI, 0);
         //this.scene.backgroundNode = Fn(() => { return vec3(0); })();
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.8;
+        this.renderer.toneMappingExposure = 0.5;
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -126,12 +144,52 @@ class SoftbodyApp {
         this.physics = new FEMPhysics(this.renderer);
         //this.physics.addObject(SoftbodyModel);
 
+        const icosphereGeo = BufferGeometryUtils.mergeVertices(new THREE.IcosahedronGeometry(1,4));
+        const icosphere = loadModelWithGeo(sphereModel, icosphereGeo);
         const tube = generateTube();
         const tubeGeometry = this.physics.addGeometry(tube)
         const virusGeometry = this.physics.addGeometry(virus);
         const skullGeometry = this.physics.addGeometry(skull);
+        const sphereGeometry = this.physics.addGeometry(icosphere, THREE.MeshSSSNodeMaterial);
         //const skullGeometry = this.physics.addGeometry(loadModel(skullModel,skullObj));
 
+        {
+            const mapFiles = [normalMapFileSnake, roughnessMapFileSnake, colorMapFileSnake, aoMapFileSnake];
+            const [ normalMapTexture, roughnessMap, colorMap, aoMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
+            const newUv = uv().mul(vec2(1.0,8.0));
+            tubeGeometry.material.normalNode = normalMap(texture(normalMapTexture, newUv), vec2(3,3));
+            tubeGeometry.material.roughnessNode = texture(roughnessMap, newUv);
+            tubeGeometry.material.aoNode = texture(aoMap, newUv);
+            tubeGeometry.material.colorNode = texture(colorMap, newUv);
+            //tubeGeometry.material.metalness = 1.0;
+            //tubeGeometry.material.roughness = 0.5;
+            //tubeGeometry.material.iridescence = 1.0;
+            //tubeGeometry.material.color = new THREE.Color(1,0.7,1);
+        }
+        {
+            const mapFiles = [earthColorFile, earthNormalFile, earthSpecularFile];
+            const [ colorMap, normalMapTexture, specularMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
+            sphereGeometry.material.normalNode = normalMap(texture(normalMapTexture), vec2(3,3));
+            sphereGeometry.material.roughnessNode = texture(specularMap).oneMinus();
+            sphereGeometry.material.colorNode = texture(colorMap);
+            /*const mapFiles = [alienNormalFile, alienColorFile, alienAoFile, alienSpecularFile];
+            const [ normalMapTexture,  colorMap, aoMap, specularMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
+            const newUv = uv().yx.mul(vec2(2.0,2.0));
+            sphereGeometry.material.normalNode = normalMap(texture(normalMapTexture, newUv), vec2(6,6));
+            sphereGeometry.material.roughnessNode = texture(specularMap, newUv).oneMinus();
+            sphereGeometry.material.aoNode = texture(aoMap, newUv);
+            sphereGeometry.material.colorNode = texture(colorMap, newUv);*/
+            sphereGeometry.material.metalness = 0.9;
+            sphereGeometry.material.roughness = 0.05;
+            sphereGeometry.material.thickness = 0.0;
+            //sphereGeometry.material.iridescence = 0.7;
+            sphereGeometry.material.color = new THREE.Color(0,0.8,1);
+            sphereGeometry.material.thicknessColorNode = Fn(() => {
+                return vec3(0,0.8,1);
+            })();
+            //sphereGeometry.material.thicknessNode = float(1);
+            console.log(sphereGeometry.material);
+        }
         {
             const mapFiles = [normalMapFileVirus, roughnessMapFileVirus];
             const [ virusNormalMap, virusRoughnessMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
@@ -143,7 +201,7 @@ class SoftbodyApp {
             virusGeometry.material.normalScale = new THREE.Vector2(3,3);
 
             virusGeometry.material.colorNode = Fn(() => {
-                return vec3(0.5,0,0.5).mul(0.05);
+                return vec3(0.5,0,0.5).mul(0.5);
             })();
 
             const vDistance = varying(float(0), "v_distance");
@@ -165,7 +223,9 @@ class SoftbodyApp {
         }
 
         for (let i=0; i<this.softbodyCount; i++) {
-            const softbody = this.physics.addInstance(tubeGeometry); //i % 4 === 0 ? skullGeometry : virusGeometry);
+            //const geometries = [sphereGeometry];
+            const geometries = [virusGeometry, skullGeometry, sphereGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
+            const softbody = this.physics.addInstance(geometries[i%geometries.length]); //i % 4 === 0 ? skullGeometry : virusGeometry);
             this.scene.add(softbody.object);
             this.softbodies.push(softbody);
         }
@@ -233,19 +293,19 @@ class SoftbodyApp {
         //conf.update();
         this.controls.update(delta);
 
-        const camZ = this.camera.position.z;
+        /*const camZ = this.camera.position.z;
         const minY = -camZ * (3/5);
         const angle = Math.atan2(this.camera.position.length(), minY);
-        this.controls.maxPolarAngle = angle - 0.2;
+        this.controls.maxPolarAngle = angle - 0.2;*/
 
         //this.stats.update();
         this.time += 0.01666;
 
         this.lastSoftbody += delta;
-        if (this.lastSoftbody > 1.0) {
+        if (this.lastSoftbody > 0.15) {
             const nextSoftbody = this.softbodies.find(sb => sb.outOfSight);
             if (nextSoftbody) {
-                this.lastSoftbody = Math.random() * -1.0;
+                this.lastSoftbody = Math.random() * -0.0;
                 await nextSoftbody.reset();
                 nextSoftbody.object.visible = !this.wireframe;
             }

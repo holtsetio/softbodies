@@ -123,6 +123,7 @@ export class SoftbodyModel {
         const object = new THREE.Mesh(geometry, material);
         object.frustumCulled = false;
         object.castShadow = true;
+        object.receiveShadow = true;
         object.visible = false;
         this.object = object;
     }
@@ -314,14 +315,25 @@ export class SoftbodyModel {
 
     async reset() {
         const scale = 3; //2.0 + Math.random() * 1;
-        const position = new THREE.Vector3((Math.random() - 0.5) * 20, 3 + 2 * scale + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
-        position.z -= 5 * 5;
-        position.y += 5 * 3;
+
+        const radius = 50;
+        const phi = Math.random() * Math.PI * 2;
+        const theta = Math.random() * Math.PI;
+        const x = radius * Math.sin(theta) * Math.cos(phi);
+        const y = radius * Math.cos(theta);
+        const z = radius * Math.sin(theta) * Math.sin(phi);
+
+
+        const position = new THREE.Vector3(x,y,z);
+
+        //position.z -= 5 * 5;
+        //position.y += 5 * 3;
         const velocity = new THREE.Vector3(0,-0.005,0.03);
         await this.physics.resetObject(this.id, position, scale, velocity);
         this.age = 0;
         this.object.visible = true;
         this.spawned = true;
+        this.outOfSight = false;
     }
     async initPos() {
         const scale = 2.0 + Math.random() * 1;
@@ -345,8 +357,8 @@ export class SoftbodyModel {
 
     }
 
-    static createMaterial(physics) {
-        const material = new THREE.MeshPhysicalNodeMaterial({
+    static createMaterial(physics, materialClass) {
+        const material = new materialClass({
             //map: SoftbodyModel.colorMap,
             //color: 0xFFAAFF,
             //roughnessMap: SoftbodyModel.roughnessMap,

@@ -4,7 +4,9 @@ import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 class Conf {
     gui = null;
 
-    wireframe = true;
+    wireframe = false;
+
+    stepsPerSecond = 120;
 
     constructor() {
 
@@ -28,6 +30,7 @@ class Conf {
             title: "settings",
             expanded: false,
         });
+        settings.addBinding(this, "stepsPerSecond", { min: 30, max: 300, step: 60 });
         settings.addBinding(this, "wireframe");
 
         this.gui = gui;
