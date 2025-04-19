@@ -5,8 +5,8 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
 import {Lights} from "./lights";
 
-//import hdrjpg from "../assets/clear_sky_afternoon_sky_dome_2k.jpg";
-import hdri from "../assets/autumn_field_puresky_1k.hdr";
+//import hdrjpg from "./assets/clear_sky_afternoon_sky_dome_2k.jpg";
+import hdri from "./assets/autumn_field_puresky_1k.hdr";
 
 import {
     dot, float,
@@ -58,7 +58,6 @@ import alienSpecularFile from './geometry/textures/Alien_Muscle_001_SPEC.jpg';
 import {conf} from "./conf";
 import {Info} from "./info";
 import {generateTube} from "./geometry/loadModel";
-import AtomicFunctionNode from "three/src/nodes/gpgpu/AtomicFunctionNode";
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
@@ -77,7 +76,7 @@ const loadTexture = (file) => {
     });
 }
 
-class SoftbodyApp {
+class App {
     renderer = null;
 
     camera = null;
@@ -105,27 +104,6 @@ class SoftbodyApp {
     }
 
     async init(progressCallback) {
-        // monkeypatch until AtomicFunctionNode is fixed in three.js
-        const patchedFunction = function generate( builder ) {
-            const method = this.method;
-            const type = this.getNodeType( builder );
-            const inputType = this.getInputType( builder );
-            const a = this.pointerNode;
-            const b = this.valueNode;
-            const params = [];
-            params.push( `&${ a.build( builder, inputType ) }` );
-            if ( b !== null ) {
-                params.push( b.build( builder, inputType ) );
-            }
-            const methodSnippet = `${ builder.getMethod( method, type ) }( ${ params.join( ', ' ) } )`;
-            if ( b !== null && method !== "atomicExchange") {
-                builder.addLineFlowCode( methodSnippet, this );
-            }
-            return methodSnippet;
-        };
-        AtomicFunctionNode.prototype.generate = (patchedFunction);
-        // monkeypatch end
-
         conf.init();
         this.info = new Info();
         this.time = 0;
@@ -341,4 +319,4 @@ class SoftbodyApp {
         conf.end();
     }
 }
-export default SoftbodyApp;
+export default App;

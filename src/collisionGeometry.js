@@ -19,10 +19,10 @@ import {
     varying, transformNormalToView, smoothstep, positionView, positionWorld, step
 } from "three/tsl";
 
-import colorMapFile from '../assets/rock_0005_color_1k.jpg';
-import aoMapFile from '../assets/rock_0005_ao_1k.jpg';
-import normalMapFile from '../assets/rock_0005_normal_opengl_1k.png';
-import roughnessMapFile from '../assets/rock_0005_roughness_1k.jpg';
+import colorMapFile from './assets/rock_0005_color_1k.jpg';
+import aoMapFile from './assets/rock_0005_ao_1k.jpg';
+import normalMapFile from './assets/rock_0005_normal_opengl_1k.png';
+import roughnessMapFile from './assets/rock_0005_roughness_1k.jpg';
 
 const textureLoader = new THREE.TextureLoader();
 const loadTexture = (file) => {

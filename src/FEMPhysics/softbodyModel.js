@@ -14,7 +14,7 @@ import {
     Loop, mix, mul, normalize, normalView, positionLocal, smoothstep, struct,
     transformNormalToView,
     varying,
-    vec3, vec4, instancedArray
+    vec3, vec4
 } from "three/tsl";
 
 const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {

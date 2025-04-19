@@ -22,12 +22,12 @@ import {
     Break,
     normalize, Return, uniform, select, time, mix, min, uniformArray, ivec3, atomicAdd, atomicStore, atomicFunc, uvec3, struct
 } from "three/tsl";
-import {mx_hash_int, mx_perlin_noise_float} from "three/src/nodes/materialx/lib/mx_noise";
 import {SoftbodyModel} from "./softbodyModel";
 import {conf} from "../conf";
+import {mx_bjfinal} from "three/src/nodes/materialx/lib/mx_noise.js";
 
 export const murmurHash13 = /*#__PURE__*/ Fn( ( [ src_immutable ] ) => {
-    const src = uvec3( src_immutable ).toVar();
+    const src = uvec3( src_immutable.add(1073741823) ).toVar(); // int to uint
     const M = uint( int( 0x5bd1e995 ) );
     const h = uint( uint( 1190494759 ) ).toVar();
     src.mulAssign( M );
@@ -47,7 +47,7 @@ export const murmurHash13 = /*#__PURE__*/ Fn( ( [ src_immutable ] ) => {
     name: 'murmurHash13',
     type: 'uint',
     inputs: [
-        { name: 'src', type: 'uvec3' }
+        { name: 'src', type: 'ivec3' }
     ]
 } );
 
@@ -298,7 +298,8 @@ export class FEMPhysics {
         let maxR = 0;
         this.tets.forEach((tet,index) => {
             const { v0, v1, v2, v3 } = tet;
-            [v0, v1, v2, v3].forEach((vertex,subindex) => {
+            const vs = [v0, v1, v2, v3];
+            vs.forEach((vertex,subindex) => {
                 restPosesArray[(index*4+subindex)*4 + 0] = vertex.x;
                 restPosesArray[(index*4+subindex)*4 + 1] = vertex.y;
                 restPosesArray[(index*4+subindex)*4 + 2] = vertex.z;
@@ -499,12 +500,12 @@ export class FEMPhysics {
 
 
             const ipos = ivec3(curCentroid.div(hashingCellSize).floor());
-            const hash = mx_hash_int(ipos.x, ipos.y, ipos.z).mod(uint(hashMapSize)).toVar("hash");
+            const hash = murmurHash13(ipos).mod(uint(hashMapSize)).toVar("hash");
             //const storeNode = this.tetPtrBuffer.element(instanceIndex);
             //const prev = atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex, 0));
             this.tetPtrBuffer.element(instanceIndex).assign(atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex));
 
-        })().compute(this.tetCount);
+        })().debug().compute(this.tetCount);
 
         this.kernels.solveCollisions = Fn(() => {
             this.hashBuffer.setAtomic(false);
@@ -521,12 +522,12 @@ export class FEMPhysics {
             const diff = vec3(0).toVar();
             const totalForce = float(0).toVar();
 
-
+            //If(uint(1).greaterThan(uint(0)), () => { Return(); });
             Loop({ start: 0, end: 3, type: 'int', name: 'gx', condition: '<' }, ({gx}) => {
                 Loop({ start: 0, end: 3, type: 'int', name: 'gy', condition: '<' }, ({gy}) => {
                     Loop({ start: 0, end: 3, type: 'int', name: 'gz', condition: '<' }, ({gz}) => {
                         const cellX = cellIndex.add(ivec3(gx,gy,gz)).toConst();
-                        const hash = mx_hash_int(cellX.x, cellX.y, cellX.z).mod(uint(hashMapSize));
+                        const hash = murmurHash13(cellX).mod(uint(hashMapSize));
                         const tetPtr = this.hashBuffer.element(hash).toVar('tetPtr');
                         Loop(tetPtr.notEqual(int(-1)), () => {
                             const checkCollision = uint(1).toVar();
