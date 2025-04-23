@@ -49,7 +49,6 @@ export class SoftbodyInstance {
         const y = radius * Math.cos(theta);
         const z = radius * Math.sin(theta) * Math.sin(phi);
 
-
         const position = new THREE.Vector3(x,y,z);
         const velocity = new THREE.Vector3(0,-0.005,0.03);
         await this.physics.resetObject(this.id, position, scale, velocity);
@@ -57,16 +56,6 @@ export class SoftbodyInstance {
         //this.object.visible = true;
         this.spawned = true;
         this.outOfSight = false;
-    }
-
-    async initPos() {
-        const scale = 3.0;
-        const position = new THREE.Vector3((Math.random() - 0.5) * 4000 + 4000, 4000, (Math.random() - 0.5) * 4000);
-        const velocity = new THREE.Vector3(0,-0.005,0.00);
-        await this.physics.resetObject(this.id, position, scale, velocity);
-        this.age = 0;
-        //this.object.visible = true;
-        this.spawned = false;
     }
 
     async update(interval) {

@@ -94,7 +94,7 @@ class App {
 
     softbodies = [];
 
-    softbodyCount = 300;
+    softbodyCount = 30;
 
     lastSoftbody = 0;
 
@@ -229,15 +229,9 @@ class App {
         await this.collisionGeometry.createGeometry();
         this.scene.add(this.collisionGeometry.object);
 
-        this.collisionGeometry.floor.material.fogNode = fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(10,50)); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
+        //this.collisionGeometry.floor.material.fogNode = fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(10,50)); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
 
         await this.physics.bake();
-        for (let i=0; i<this.softbodyCount; i++) {
-            const softbody = this.softbodies[i];
-            await softbody.initPos();
-            softbody.spawned = false;
-        }
-
 
         this.tetVisualizer = new TetVisualizer(this.physics);
         this.tetVisualizer.object.visible = false;

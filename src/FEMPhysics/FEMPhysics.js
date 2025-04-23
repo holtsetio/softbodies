@@ -225,6 +225,18 @@ export class FEMPhysics {
             });
         });
 
+        const objectStruct = {
+            size: "float",
+            centerVertex: "uint",
+        }
+        const objectBuffer = new StructuredArray(objectStruct, this.objects.length, "objects");
+        this.objectBuffer = objectBuffer;
+        this.objectData.forEach((objectData, index) => {
+            objectBuffer.set(index, "size", 0.0);
+            objectBuffer.set(index, "centerVertex", objectData.centerVertex.id);
+        });
+
+
         this.influencerBuffer = instancedArray(influencerArray, 'uint');
 
         const hashMapSize = 1048573; //
@@ -256,6 +268,9 @@ export class FEMPhysics {
             });*/
             this.hashBuffer.element(instanceIndex).assign(-1);
         })().compute(hashMapSize);
+        console.time("clearHashMap");
+        await this.renderer.computeAsync(this.kernels.clearHashMap); //call once to compile
+        console.timeEnd("clearHashMap");
 
 
         this.kernels.solveElemPass = Fn(() => {
@@ -263,6 +278,12 @@ export class FEMPhysics {
             If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
                 Return();
             });
+            const objectId = tetBuffer.get(instanceIndex, "objectId");
+            const size = objectBuffer.get(objectId, "size");
+            If(size.lessThan(0.0001), () => {
+                Return();
+            });
+
             // Gather this tetrahedron's 4 vertex positions
             const vertexIds = tetBuffer.get(instanceIndex, "vertexIds").toVar();
             const pos0 = vertexBuffer.get(vertexIds.x, "position").toVar();
@@ -336,6 +357,9 @@ export class FEMPhysics {
             tetBuffer.get(instanceIndex, "nextTet").assign(atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex));
 
         })().compute(this.tetCount);
+        console.time("solveElemPass");
+        await this.renderer.computeAsync(this.kernels.solveElemPass); //call once to compile
+        console.timeEnd("solveElemPass");
 
 
         this.kernels.solveCollisions = Fn(() => {
@@ -343,13 +367,18 @@ export class FEMPhysics {
             If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
                 Return();
             });
+            const objectId = tetBuffer.get(instanceIndex, "objectId").toVar();
+            const size = objectBuffer.get(objectId, "size");
+            If(size.lessThan(0.0001), () => {
+                Return();
+            });
+
             const centroid = tetBuffer.get(instanceIndex, "centroid").toVar("centroid");
             const position = centroid.toVar("pos");
             const radius = tetBuffer.get(instanceIndex, "radius").toVar();
             const initialPosition = tetBuffer.get(instanceIndex, "initialPosition").toVar();
 
             const cellIndex =  ivec3(position.div(hashingCellSize).floor()).sub(1).toConst("cellIndex");
-            const objectId = tetBuffer.get(instanceIndex, "objectId").toVar();
             const diff = vec3(0).toVar();
             const totalForce = float(0).toVar();
 
@@ -394,6 +423,9 @@ export class FEMPhysics {
                 restPosesBuffer.get(instanceIndex.mul(4).add(3), "position").addAssign(diff);
             });
         })().compute(this.tetCount);
+        console.time("solveCollisions");
+        await this.renderer.computeAsync(this.kernels.solveCollisions); //call once to compile
+        console.timeEnd("solveCollisions");
 
 
         this.kernels.applyElemPass = Fn(()=>{
@@ -401,6 +433,12 @@ export class FEMPhysics {
             If(instanceIndex.greaterThanEqual(this.uniforms.vertexCount), () => {
                 Return();
             });
+            const objectId = vertexBuffer.get(instanceIndex, "objectId");
+            const size = objectBuffer.get(objectId, "size");
+            If(size.lessThan(0.0001), () => {
+                Return();
+            });
+
             const prevPosition = vertexBuffer.get(instanceIndex, "prevPosition").toVar();
             const ptrStart = vertexBuffer.get(instanceIndex, "influencerPtr").toVar();
             const ptrEnd = ptrStart.add(vertexBuffer.get(instanceIndex, "influencerCount")).toVar();
@@ -435,6 +473,9 @@ export class FEMPhysics {
 
             vertexBuffer.get(instanceIndex, "position").assign(position);
         })().compute(this.vertexCount);
+        console.time("applyElemPass");
+        await this.renderer.computeAsync(this.kernels.applyElemPass); //call once to compile
+        console.timeEnd("applyElemPass");
 
 
         // ######################
@@ -451,10 +492,21 @@ export class FEMPhysics {
                 Return();
             });
             const vertexId = this.uniforms.resetVertexStart.add(instanceIndex).toVar();
+
+            If(instanceIndex.equal(uint(0)), () => {
+                const objectId = vertexBuffer.get(vertexId, "objectId").toVar();
+                objectBuffer.get(objectId, "size").assign(1.0);
+            });
+
+
             const initialPosition = vertexBuffer.get(vertexId, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
             vertexBuffer.get(vertexId, "position").assign(initialPosition);
             vertexBuffer.get(vertexId, "prevPosition").assign(initialPosition.sub(this.uniforms.resetVelocity));
         })().compute(this.vertexCount);
+        console.time("resetVertices");
+        await this.renderer.computeAsync(this.kernels.resetVertices); //call once to compile
+        console.timeEnd("resetVertices");
+
 
         this.uniforms.resetTetStart = uniform(0, "uint");
         this.uniforms.resetTetCount = uniform(0, "uint");
@@ -478,6 +530,9 @@ export class FEMPhysics {
             restPosesBuffer.get(tetId.mul(4).add(3), "position").assign(pos3);
             tetBuffer.get(tetId, "quat").assign(vec4(0,0,0,1));
         })().compute(this.tetCount);
+        console.time("resetTets");
+        await this.renderer.computeAsync(this.kernels.resetTets); //call once to compile
+        console.timeEnd("resetTets");
 
 
         // ##################################
@@ -491,6 +546,12 @@ export class FEMPhysics {
                 Return();
             });
 
+            const objectId = vertexBuffer.get(instanceIndex, "objectId");
+            const size = objectBuffer.get(objectId, "size");
+            If(size.lessThan(0.0001), () => {
+                Return();
+            });
+
             const { mouseRayOrigin, mouseRayDirection } = this.uniforms;
             const position = vertexBuffer.get(instanceIndex, "position").toVar();
             const prevPosition = vertexBuffer.get(instanceIndex, "prevPosition");
@@ -499,7 +560,9 @@ export class FEMPhysics {
             const force = dist.mul(0.3).oneMinus().max(0.0).pow(0.5);
             prevPosition.addAssign(vec3(0,-0.25,0).mul(force));
         })().compute(this.vertexCount);
+        console.time("applyMouseEvent");
         await this.renderer.computeAsync(this.kernels.applyMouseEvent); //call once to compile
+        console.timeEnd("applyMouseEvent");
 
 
         // #############################
@@ -514,6 +577,7 @@ export class FEMPhysics {
             const position = vertexBuffer.get(centerVertex, "position");
             this.positionReadbackBuffer.element(instanceIndex).assign(position);
         })().compute(this.objects.length);
+        await this.renderer.computeAsync(this.kernels.readPositions); //call once to compile
 
 
         // ####################
