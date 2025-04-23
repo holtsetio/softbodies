@@ -24,143 +24,13 @@ import {
 } from "three/tsl";
 import {SoftbodyModel} from "./softbodyModel";
 import {conf} from "../conf";
-import {mx_bjfinal} from "three/src/nodes/materialx/lib/mx_noise.js";
-
-export const murmurHash13 = /*#__PURE__*/ Fn( ( [ src_immutable ] ) => {
-    const src = uvec3( src_immutable.add(1073741823) ).toVar(); // int to uint
-    const M = uint( int( 0x5bd1e995 ) );
-    const h = uint( uint( 1190494759 ) ).toVar();
-    src.mulAssign( M );
-    src.bitXorAssign( src.shiftRight( uvec3( 24 ) ) );
-    src.mulAssign( M );
-    h.mulAssign( M );
-    h.bitXorAssign( src.x );
-    h.mulAssign( M );
-    h.bitXorAssign( src.y );
-    h.mulAssign( M );
-    h.bitXorAssign( src.z );
-    h.bitXorAssign( h.shiftRight( uint( 13 ) ) );
-    h.mulAssign( M );
-    h.bitXorAssign( h.shiftRight( uint( 15 ) ) );
-    return h;
-} ).setLayout( {
-    name: 'murmurHash13',
-    type: 'uint',
-    inputs: [
-        { name: 'src', type: 'ivec3' }
-    ]
-} );
-
-
-export const RotationToQuaternion = /*#__PURE__*/ Fn( ( [ axis_immutable, angle_immutable ] ) => {
-
-    const angle = float( angle_immutable ).toVar();
-    const axis = vec3( axis_immutable ).toVar();
-    const half_angle = float( angle.mul( 0.5 ) ).toVar();
-    const s = vec2( sin( vec2( half_angle, half_angle.add( Math.PI * 0.5 ) ) ) ).toVar();
-
-    return vec4( axis.mul( s.x ), s.y );
-
-} ).setLayout( {
-    name: 'RotationToQuaternion',
-    type: 'vec4',
-    inputs: [
-        { name: 'axis', type: 'vec3' },
-        { name: 'angle', type: 'float' }
-    ]
-} );
-
-export const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {
-
-    const quat = vec4( quat_immutable ).toVar();
-    const pos = vec3( pos_immutable ).toVar();
-
-    return pos.add( mul( 2.0, cross( quat.xyz, cross( quat.xyz, pos ).add( quat.w.mul( pos ) ) ) ) );
-
-} ).setLayout( {
-    name: 'Rotate',
-    type: 'vec3',
-    inputs: [
-        { name: 'pos', type: 'vec3' },
-        { name: 'quat', type: 'vec4' }
-    ]
-} );
-
-export const quat_conj = /*#__PURE__*/ Fn( ( [ q_immutable ] ) => {
-
-    const q = vec4( q_immutable ).toVar();
-
-    return normalize( vec4( q.x.negate(), q.y.negate(), q.z.negate(), q.w ) );
-
-} ).setLayout( {
-    name: 'quat_conj',
-    type: 'vec4',
-    inputs: [
-        { name: 'q', type: 'vec4' }
-    ]
-} );
-
-
-export const quat_mult = /*#__PURE__*/ Fn( ( [ q1_immutable, q2_immutable ] ) => {
-
-    const q2 = vec4( q2_immutable ).toVar();
-    const q1 = vec4( q1_immutable ).toVar();
-    const qr = vec4().toVar();
-    qr.x.assign( q1.w.mul( q2.x ).add( q1.x.mul( q2.w ) ).add( q1.y.mul( q2.z ).sub( q1.z.mul( q2.y ) ) ) );
-    qr.y.assign( q1.w.mul( q2.y ).sub( q1.x.mul( q2.z ) ).add( q1.y.mul( q2.w ) ).add( q1.z.mul( q2.x ) ) );
-    qr.z.assign( q1.w.mul( q2.z ).add( q1.x.mul( q2.y ).sub( q1.y.mul( q2.x ) ) ).add( q1.z.mul( q2.w ) ) );
-    qr.w.assign( q1.w.mul( q2.w ).sub( q1.x.mul( q2.x ) ).sub( q1.y.mul( q2.y ) ).sub( q1.z.mul( q2.z ) ) );
-
-    return qr;
-
-} ).setLayout( {
-    name: 'quat_mult',
-    type: 'vec4',
-    inputs: [
-        { name: 'q1', type: 'vec4' },
-        { name: 'q2', type: 'vec4' }
-    ]
-} );
-
-export const extractRotation = /*#__PURE__*/ Fn( ( [ A_immutable, q_immutable ] ) => {
-
-    const q = vec4( q_immutable ).toVar();
-    const A = mat3( A_immutable ).toVar();
-
-    Loop( { start: int( 0 ), end: int( 9 ), name: 'iter' }, ( { iter } ) => {
-
-        const X = vec3( Rotate( vec3( 1.0, 0.0, 0.0 ), q ) ).toVar();
-        const Y = vec3( Rotate( vec3( 0.0, 1.0, 0.0 ), q ) ).toVar();
-        const Z = vec3( Rotate( vec3( 0.0, 0.0, 1.0 ), q ) ).toVar();
-        const omega = vec3( cross( X, A.element( int( 0 ) ) ).add( cross( Y, A.element( int( 1 ) ) ) ).add( cross( Z, A.element( int( 2 ) ) ) ).mul( div( 1.0, abs( dot( X, A.element( int( 0 ) ) ).add( dot( Y, A.element( int( 1 ) ) ) ).add( dot( Z, A.element( int( 2 ) ) ) ).add( 0.000000001 ) ) ) ) ).toVar();
-        const w = float( length( omega ) ).toVar();
-
-        If( w.lessThan( 0.000000001 ), () => {
-            Break();
-        } );
-
-        q.assign( quat_mult( RotationToQuaternion( omega.div( w ), w ), q ) );
-
-    } );
-
-    return q;
-
-} ).setLayout( {
-    name: 'extractRotation',
-    type: 'vec4',
-    inputs: [
-        { name: 'A', type: 'mat3' },
-        { name: 'q', type: 'vec4' }
-    ]
-} );
-
+import {StructuredArray} from "./structuredArray.js";
+import { murmurHash13, rotateByQuat, quat_conj, quat_mult, extractRotation } from "./math.js";
 
 export class FEMPhysics {
     vertices = [];
 
     tets = [];
-
-    triangles = [];
 
     objects = [];
 
@@ -171,8 +41,6 @@ export class FEMPhysics {
     vertexCount = 0;
 
     tetCount = 0;
-
-    triangleCount = 0;
 
     density = 1000;
 
@@ -198,7 +66,6 @@ export class FEMPhysics {
         vertex.id = id;
         vertex.objectId = objectId;
         vertex.influencers = [];
-        vertex.triangles = [];
         this.vertices.push(vertex);
 
         const objectDataElement = this.objectData[objectId];
@@ -226,15 +93,6 @@ export class FEMPhysics {
         return tet;
     }
 
-    addTriangle(objectId, v0, v1, v2) {
-        const id = this.triangleCount;
-        const triangle = {id,v0,v1,v2,objectId};
-        this.triangles.push(triangle);
-        this.objectData[objectId].triangleCount++;
-        this.triangleCount++;
-        return triangle;
-    }
-
     _addObject(object) {
         const id = this.objects.length;
         this.objects.push(object);
@@ -245,8 +103,6 @@ export class FEMPhysics {
             tetCount: 0,
             vertexStart: this.vertexCount,
             vertexCount: 0,
-            triangleStart: this.triangleCount,
-            triangleCount: 0,
             position: new THREE.Vector3(),
         });
         return id;
@@ -277,153 +133,113 @@ export class FEMPhysics {
         console.log(this.vertexCount + " vertices");
         console.log(this.tetCount + " tetrahedrons");
 
-        let length = 0;
-        this.triangles.forEach(triangle => {
-            const { v0, v1, v2 } = triangle;
-            length += v0.distanceTo(v1);
-            length += v1.distanceTo(v2);
-            length += v2.distanceTo(v0);
-        })
+        // ################
+        //  CREATE BUFFERS
+        // ################
 
-        const oldrestingPose = new THREE.Matrix3();
-        const restVolumeArray = new Float32Array(this.tetCount);
-        const invMassArray = new Float32Array(this.vertexCount);
-        const radiusArray = new Float32Array(this.tetCount);
-        const quatsArray = new Float32Array(this.tetCount*4);
-        const restPosesArray = new Float32Array(this.tetCount*4*4);
-        const tetObjectIdArray = new Uint32Array(this.tetCount);
-        const vertexObjectIdArray = new Uint32Array(this.vertexCount);
-        const initialTetPositionArray = new Float32Array(this.tetCount * 3);
+        const tetStruct = {
+            restVolume: "float",
+            radius: "float",
+            objectId: "uint",
+            nextTet: "int",
+            quat: "vec4",
+            initialPosition: "vec3",
+            centroid: "vec3",
+            vertexIds: "uvec4",
+        };
+        const tetBuffer = new StructuredArray(tetStruct, this.tetCount, "tets");
+        this.tetBuffer = tetBuffer;
+
+        const restposeStruct = {
+            position: "vec3",
+            restVolume: "float",
+        };
+        const restPosesBuffer = new StructuredArray(restposeStruct, this.tetCount * 4, "restPoses");
+        this.restPosesBuffer = restPosesBuffer;
 
         let maxR = 0;
         this.tets.forEach((tet,index) => {
             const { v0, v1, v2, v3 } = tet;
+            const center = v0.clone().add(v1).add(v2).add(v3).multiplyScalar(0.25);
+            const a = v1.clone().sub(v0);
+            const b = v2.clone().sub(v0);
+            const c = v3.clone().sub(v0);
+            const V = Math.abs(a.cross(b).dot(c)) / 6;
+            const radius = (Math.pow((3/4) * V / Math.PI, 1/3));
+            maxR = Math.max(maxR, radius);
             const vs = [v0, v1, v2, v3];
             vs.forEach((vertex,subindex) => {
-                restPosesArray[(index*4+subindex)*4 + 0] = vertex.x;
-                restPosesArray[(index*4+subindex)*4 + 1] = vertex.y;
-                restPosesArray[(index*4+subindex)*4 + 2] = vertex.z;
-                restPosesArray[(index*4+subindex)*4 + 3] = 0;
+                restPosesBuffer.set(index*4 + subindex, "position", vertex);
+                restPosesBuffer.set(index*4 + subindex, "restVolume", V);
             });
-            const center = v0.clone().add(v1).add(v2).add(v3).multiplyScalar(0.25);
-            initialTetPositionArray[index*3 + 0] = center.x;
-            initialTetPositionArray[index*3 + 1] = center.y;
-            initialTetPositionArray[index*3 + 2] = center.z;
 
-
-            const e = oldrestingPose.elements;
-            e[0] = v1.x - v0.x;
-            e[3] = v1.y - v0.y;
-            e[6] = v1.z - v0.z;
-            e[1] = v2.x - v0.x;
-            e[4] = v2.y - v0.y;
-            e[7] = v2.z - v0.z;
-            e[2] = v3.x - v0.x;
-            e[5] = v3.y - v0.y;
-            e[8] = v3.z - v0.z;
-            const V = oldrestingPose.determinant() / 6;
-            let pm = V / 4.0 * this.density;
-            invMassArray[v0.id] += pm;
-            invMassArray[v1.id] += pm;
-            invMassArray[v2.id] += pm;
-            invMassArray[v3.id] += pm;
-            restVolumeArray[index] = V;
-            quatsArray[index*4+0] = 0;
-            quatsArray[index*4+1] = 0;
-            quatsArray[index*4+2] = 0;
-            quatsArray[index*4+3] = 1;
-            tetObjectIdArray[index] = tet.objectId;
-
-            const radius = (Math.pow((3/4) * V / Math.PI, 1/3));
-            radiusArray[index] = radius;
-            maxR = Math.max(maxR, radius);
+            tetBuffer.set(index, "initialPosition", center);
+            tetBuffer.set(index, "vertexIds", [v0.id,v1.id,v2.id,v3.id]);
+            tetBuffer.set(index, "restVolume", V);
+            tetBuffer.set(index, "quat", [0,0,0,1]);
+            tetBuffer.set(index, "objectId", tet.objectId);
+            tetBuffer.set(index, "radius", radius);
         });
         console.log("maxRadius", maxR);
 
-        const positionArray = new Float32Array(this.vertexCount * 3);
-        const influencerPtrArray = new Uint32Array(this.vertexCount * 2); // x: ptr, y: length
+
+        const vertexStruct = {
+            objectId: "uint",
+            influencerPtr: "uint",
+            influencerCount: "uint",
+            initialPosition: "vec3",
+            position: "vec3",
+            prevPosition: "vec3",
+        };
+        const vertexBuffer = new StructuredArray(vertexStruct, this.vertexCount, "vertices");
+        this.vertexBuffer = vertexBuffer;
+
         const influencerArray = new Uint32Array(this.tetCount * 4);
         let influencerPtr = 0;
         this.vertices.forEach((vertex, index) => {
-            positionArray[index*3+0] = vertex.x * 1.0;// + Math.random() * 0.001;
-            positionArray[index*3+1] = vertex.y * 1.0;// + Math.random() * 0.001;
-            positionArray[index*3+2] = vertex.z * 1.0;// + Math.random() * 0.001;
-            influencerPtrArray[index * 2 + 0] = influencerPtr;
-            influencerPtrArray[index * 2 + 1] = vertex.influencers.length;
+            vertexBuffer.set(index, "initialPosition", vertex);
+            vertexBuffer.set(index, "position", vertex);
+            vertexBuffer.set(index, "prevPosition", vertex);
+            vertexBuffer.set(index, "influencerPtr", influencerPtr);
+            vertexBuffer.set(index, "influencerCount", vertex.influencers.length);
+            vertexBuffer.set(index, "objectId", vertex.objectId);
+
             vertex.influencers.forEach(influencer => {
                 influencerArray[influencerPtr] = influencer;
                 influencerPtr++;
             });
-            if (invMassArray[index] !== 0.0) {
-                invMassArray[index] = 1 / invMassArray[index];
-            }
-            vertexObjectIdArray[index] = vertex.objectId;
         });
 
-        const tetArray = new Int32Array(this.tetCount * 4);
-        this.tets.forEach((tet,index) => {
-            const { v0,v1,v2,v3 } = tet;
-            tetArray[index*4+0] = v0.id;
-            tetArray[index*4+1] = v1.id;
-            tetArray[index*4+2] = v2.id;
-            tetArray[index*4+3] = v3.id;
-        });
-
-
-        this.initialPositionBuffer = instancedArray(positionArray, 'vec3');
-        this.positionBuffer = instancedArray(positionArray, 'vec3');
-        this.positionBuffer2 = instancedArray(positionArray, 'vec3');
-        this.prevPositionBuffer = instancedArray(positionArray, 'vec3');
-        this.influencerPtrBuffer = instancedArray(influencerPtrArray, 'uvec2');
         this.influencerBuffer = instancedArray(influencerArray, 'uint');
-        this.tetBuffer = instancedArray(tetArray, 'ivec4');
-        this.restPosesBuffer = instancedArray(restPosesArray, 'vec4');
-        this.quatsBuffer = instancedArray(quatsArray, 'vec4');
-        this.invMassBuffer = instancedArray(invMassArray, 'float');
-        this.restVolumeBuffer = instancedArray(restVolumeArray, 'float');
-        this.radiusBuffer = instancedArray(radiusArray, 'float');
-        this.tetPtrBuffer = instancedArray(this.tets.length, "int");
-        this.centroidBuffer = instancedArray(this.tets.length, "vec3");
-        this.initialTetPositionBuffer = instancedArray(initialTetPositionArray, "vec3");
 
-        const triangleStruct = struct( {
-            vertices: { type: 'ivec3' },
-            objectId: { type: 'uint' },
-            ptr: { type: 'int' },
-        } );
-        const triangleStride = 8;
-
-        const triangleArrayI32 = new Int32Array(this.triangleCount * triangleStride);
-        const triangleArrayF32 = new Float32Array(triangleArrayI32.buffer);
-        this.triangles.forEach((triangle, index) => {
-            const { v0,v1,v2,objectId } = triangle;
-            triangleArrayI32[index*triangleStride+0] = v0.id;
-            triangleArrayI32[index*triangleStride+1] = v1.id;
-            triangleArrayI32[index*triangleStride+2] = v2.id;
-            triangleArrayI32[index*triangleStride+3] = objectId;
-            triangleArrayI32[index*triangleStride+4] = 1337;
-            triangleArrayI32[index*triangleStride+5] = 1338;
-            triangleArrayI32[index*triangleStride+6] = 1339;
-            triangleArrayI32[index*triangleStride+7] = 1340;
-        });
-
-        this.triangleBuffer = instancedArray(triangleArrayI32, triangleStruct);
-        //this.triangleObjectIdBuffer = instancedArray(triangleObjectIdArray, 'uint');
-        //this.trianglePtrBuffer = instancedArray(triangleArray.length, 'int');
         const hashMapSize = 1048573; //
         const hashingCellSize = 0.36
         this.hashBuffer = instancedArray(hashMapSize, "int").toAtomic();
 
-
-        this.tetObjectIdBuffer = instancedArray(tetObjectIdArray, 'uint');
-        this.vertexObjectIdBuffer = instancedArray(vertexObjectIdArray, 'uint');
+        // #################
+        //  CREATE UNIFORMS
+        // #################
 
         this.uniforms.vertexCount = uniform(this.vertexCount, "int");
         this.uniforms.tetCount = uniform(this.tetCount, "int");
-        this.uniforms.triangleCount = uniform(this.triangleCount, "int");
         this.uniforms.time = uniform(0, "float");
         this.uniforms.dt = uniform(1, "float");
         this.uniforms.gravity = uniform(new THREE.Vector3(0,-9.81*2,0), "vec3");
+        this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
+
+
+        // ################
+        //  CREATE KERNELS
+        // ################
+
+        this.kernels.clearHashMap = Fn(() => {
+            this.hashBuffer.setAtomic(false);
+            /*If(instanceIndex.greaterThanEqual(uint(hashMapSize)), () => {
+                Return();
+            });*/
+            this.hashBuffer.element(instanceIndex).assign(-1);
+        })().compute(hashMapSize);
+
 
         this.kernels.solveElemPass = Fn(() => {
             this.hashBuffer.setAtomic(true);
@@ -431,19 +247,19 @@ export class FEMPhysics {
                 Return();
             });
             // Gather this tetrahedron's 4 vertex positions
-            const vertexIds = this.tetBuffer.element(instanceIndex);
-            const pos0 = this.positionBuffer.element(vertexIds.x).toVar();
-            const pos1 = this.positionBuffer.element(vertexIds.y).toVar();
-            const pos2 = this.positionBuffer.element(vertexIds.z).toVar();
-            const pos3 = this.positionBuffer.element(vertexIds.w).toVar();
+            const vertexIds = tetBuffer.get(instanceIndex, "vertexIds").toVar();
+            const pos0 = vertexBuffer.get(vertexIds.x, "position").toVar();
+            const pos1 = vertexBuffer.get(vertexIds.y, "position").toVar();
+            const pos2 = vertexBuffer.get(vertexIds.z, "position").toVar();
+            const pos3 = vertexBuffer.get(vertexIds.w, "position").toVar();
 
             // The Reference Rest Pose Positions
             // These are the same as the resting pose, but they're already pre-rotated
             // to a good approximation of the current pose
-            const ref0 = this.restPosesBuffer.element(instanceIndex.mul(4)).xyz.toVar();
-            const ref1 = this.restPosesBuffer.element(instanceIndex.mul(4).add(1)).xyz.toVar();
-            const ref2 = this.restPosesBuffer.element(instanceIndex.mul(4).add(2)).xyz.toVar();
-            const ref3 = this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).xyz.toVar();
+            const ref0 = restPosesBuffer.get(instanceIndex.mul(4), "position").toVar();
+            const ref1 = restPosesBuffer.get(instanceIndex.mul(4).add(1), "position").toVar();
+            const ref2 = restPosesBuffer.get(instanceIndex.mul(4).add(2), "position").toVar();
+            const ref3 = restPosesBuffer.get(instanceIndex.mul(4).add(3), "position").toVar();
 
             // Get the centroids
             const curCentroid = pos0.add(pos1).add(pos2).add(pos3).mul(0.25).toVar();
@@ -478,47 +294,45 @@ export class FEMPhysics {
             const rotation = extractRotation(covariance, vec4(0.0, 0.0, 0.0, 1.0));
 
             // Write out the undeformed tetrahedron
-            const prevQuat = this.quatsBuffer.element(instanceIndex).toVar();
+            const prevQuat = tetBuffer.get(instanceIndex, "quat").toVar();
             const newQuat = normalize(quat_mult(rotation, prevQuat)); // Keep track of the current Quaternion for normals
-            this.quatsBuffer.element(instanceIndex).assign(newQuat);
+            tetBuffer.get(instanceIndex, "quat").assign(newQuat);
 
-            const volume  = this.restVolumeBuffer.element(instanceIndex).toVar();
             const relativeQuat = normalize(quat_mult(newQuat, quat_conj(prevQuat)));
 
             // Rotate the undeformed tetrahedron by the deformed's rotationf
-            ref0.assign(Rotate(ref0, relativeQuat).add(curCentroid));
-            ref1.assign(Rotate(ref1, relativeQuat).add(curCentroid));
-            ref2.assign(Rotate(ref2, relativeQuat).add(curCentroid));
-            ref3.assign(Rotate(ref3, relativeQuat).add(curCentroid));
+            ref0.assign(rotateByQuat(ref0, relativeQuat).add(curCentroid));
+            ref1.assign(rotateByQuat(ref1, relativeQuat).add(curCentroid));
+            ref2.assign(rotateByQuat(ref2, relativeQuat).add(curCentroid));
+            ref3.assign(rotateByQuat(ref3, relativeQuat).add(curCentroid));
 
-            this.centroidBuffer.element(instanceIndex).assign(curCentroid);
-            this.restPosesBuffer.element(instanceIndex.mul(4)).assign(vec4(ref0, volume));
-            this.restPosesBuffer.element(instanceIndex.mul(4).add(1)).assign(vec4(ref1, volume));
-            this.restPosesBuffer.element(instanceIndex.mul(4).add(2)).assign(vec4(ref2, volume));
-            this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).assign(vec4(ref3, volume));
-
-
+            tetBuffer.get(instanceIndex, "centroid").assign(curCentroid);
+            restPosesBuffer.get(instanceIndex.mul(4), "position").assign(ref0);
+            restPosesBuffer.get(instanceIndex.mul(4).add(1), "position").assign(ref1);
+            restPosesBuffer.get(instanceIndex.mul(4).add(2), "position").assign(ref2);
+            restPosesBuffer.get(instanceIndex.mul(4).add(3), "position").assign(ref3);
 
             const ipos = ivec3(curCentroid.div(hashingCellSize).floor());
             const hash = murmurHash13(ipos).mod(uint(hashMapSize)).toVar("hash");
             //const storeNode = this.tetPtrBuffer.element(instanceIndex);
             //const prev = atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex, 0));
-            this.tetPtrBuffer.element(instanceIndex).assign(atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex));
+            tetBuffer.get(instanceIndex, "nextTet").assign(atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex));
 
-        })().debug().compute(this.tetCount);
+        })().compute(this.tetCount);
+
 
         this.kernels.solveCollisions = Fn(() => {
             this.hashBuffer.setAtomic(false);
             If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
                 Return();
             });
-            const centroid = this.centroidBuffer.element(instanceIndex).toVar("centroid");
+            const centroid = tetBuffer.get(instanceIndex, "centroid").toVar("centroid");
             const position = centroid.toVar("pos");
-            const radius = this.radiusBuffer.element(instanceIndex).toVar();
-            const initialPosition = this.initialTetPositionBuffer.element(instanceIndex);
+            const radius = tetBuffer.get(instanceIndex, "radius").toVar();
+            const initialPosition = tetBuffer.get(instanceIndex, "initialPosition").toVar();
 
             const cellIndex =  ivec3(position.div(hashingCellSize).floor()).sub(1).toConst("cellIndex");
-            const objectId = this.tetObjectIdBuffer.element(instanceIndex);
+            const objectId = tetBuffer.get(instanceIndex, "objectId").toVar();
             const diff = vec3(0).toVar();
             const totalForce = float(0).toVar();
 
@@ -531,17 +345,17 @@ export class FEMPhysics {
                         const tetPtr = this.hashBuffer.element(hash).toVar('tetPtr');
                         Loop(tetPtr.notEqual(int(-1)), () => {
                             const checkCollision = uint(1).toVar();
-                            const objectId2 = this.tetObjectIdBuffer.element(tetPtr);
+                            const objectId2 = tetBuffer.get(tetPtr, "objectId");
                             If(objectId.equal(objectId2), () => {
-                                const initialPosition2 = this.initialTetPositionBuffer.element(tetPtr);
+                                const initialPosition2 = tetBuffer.get(tetPtr, "initialPosition")
                                 const delta = initialPosition2.sub(initialPosition).toVar();
                                 const distSquared = dot(delta,delta);
                                 checkCollision.assign(select(distSquared.greaterThan(0.5*0.5), uint(1), uint(0)));
                             });
 
                             If(checkCollision.equal(uint(1)), () => {
-                                const centroid_2 = this.centroidBuffer.element(tetPtr).toVar("centroid2");
-                                const radius2 = this.radiusBuffer.element(tetPtr).toVar();
+                                const centroid_2 = tetBuffer.get(tetPtr, "centroid").toVar("centroid2");
+                                const radius2 = tetBuffer.get(tetPtr, "radius").toVar();
 
                                 const minDist = radius.add(radius2).mul(3).mul(1.0);
                                 const dist = centroid.distance(centroid_2);
@@ -550,52 +364,42 @@ export class FEMPhysics {
                                 totalForce.addAssign(force.div(minDist));
                                 diff.addAssign(dir.mul(force).mul(0.5));
                             });
-                            tetPtr.assign(this.tetPtrBuffer.element(tetPtr));
+                            tetPtr.assign(tetBuffer.get(tetPtr, "nextTet"));
                         })
                     });
                 });
             });
             If(totalForce.greaterThan(0.0), () => {
                 //diff.divAssign(totalForce);
-                this.restPosesBuffer.element(instanceIndex.mul(4)).xyz.addAssign(diff);
-                this.restPosesBuffer.element(instanceIndex.mul(4).add(1)).xyz.addAssign(diff);
-                this.restPosesBuffer.element(instanceIndex.mul(4).add(2)).xyz.addAssign(diff);
-                this.restPosesBuffer.element(instanceIndex.mul(4).add(3)).xyz.addAssign(diff);
+                restPosesBuffer.get(instanceIndex.mul(4), "position").addAssign(diff);
+                restPosesBuffer.get(instanceIndex.mul(4).add(1), "position").addAssign(diff);
+                restPosesBuffer.get(instanceIndex.mul(4).add(2), "position").addAssign(diff);
+                restPosesBuffer.get(instanceIndex.mul(4).add(3), "position").addAssign(diff);
             });
-
-
         })().compute(this.tetCount);
 
-        this.kernels.clearHashMap = Fn(() => {
-            this.hashBuffer.setAtomic(false);
-            /*If(instanceIndex.greaterThanEqual(uint(hashMapSize)), () => {
-                Return();
-            });*/
-            this.hashBuffer.element(instanceIndex).assign(-1);
-        })().compute(hashMapSize);
 
         this.kernels.applyElemPass = Fn(()=>{
             this.hashBuffer.setAtomic(false);
             If(instanceIndex.greaterThanEqual(this.uniforms.vertexCount), () => {
                 Return();
             });
-            const prevPosition = this.prevPositionBuffer.element(instanceIndex).toVar();
-            const influencerPtr = this.influencerPtrBuffer.element(instanceIndex).toVar();
-            const ptrStart = influencerPtr.x.toVar();
-            const ptrEnd = ptrStart.add(influencerPtr.y).toVar();
+            const prevPosition = vertexBuffer.get(instanceIndex, "prevPosition").toVar();
+            const ptrStart = vertexBuffer.get(instanceIndex, "influencerPtr").toVar();
+            const ptrEnd = ptrStart.add(vertexBuffer.get(instanceIndex, "influencerCount")).toVar();
             const position = vec3().toVar();
             const weight = float().toVar();
             Loop({ start: ptrStart, end: ptrEnd,  type: 'uint', condition: '<' }, ({ i })=>{
                 const restPositionPtr = this.influencerBuffer.element(i);
-                const restPosition = this.restPosesBuffer.element(restPositionPtr);
-                position.addAssign(restPosition.xyz.mul(restPosition.w));
-                weight.addAssign(restPosition.w);
+                const restPosition = restPosesBuffer.get(restPositionPtr, "position");
+                const restVolume = restPosesBuffer.get(restPositionPtr, "restVolume");
+                position.addAssign(restPosition.mul(restVolume));
+                weight.addAssign(restVolume);
             });
             position.divAssign(weight);
             //const currentPosition = this.positionBuffer.element(instanceIndex).toVar();
 
-
-            this.prevPositionBuffer.element(instanceIndex).assign(position);
+            vertexBuffer.get(instanceIndex, "prevPosition").assign(position);
 
             const { dt, gravity } = this.uniforms;
             const gravity2 = position.normalize().mul(-9.81).mul(1);
@@ -612,9 +416,13 @@ export class FEMPhysics {
             });
             position.xyz.addAssign(F.mul(frictionDir).mul(min(1.0, dt.mul(100))));
 
-
-            this.positionBuffer.element(instanceIndex).assign(position);
+            vertexBuffer.get(instanceIndex, "position").assign(position);
         })().compute(this.vertexCount);
+
+
+        // ######################
+        //  CREATE RESET KERNELS
+        // ######################
 
         this.uniforms.resetVertexStart = uniform(0, "uint");
         this.uniforms.resetVertexCount = uniform(0, "uint");
@@ -626,9 +434,9 @@ export class FEMPhysics {
                 Return();
             });
             const vertexId = this.uniforms.resetVertexStart.add(instanceIndex).toVar();
-            const initialPosition = this.initialPositionBuffer.element(vertexId).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
-            this.positionBuffer.element(vertexId).assign(initialPosition);
-            this.prevPositionBuffer.element(vertexId).assign(initialPosition.sub(this.uniforms.resetVelocity));
+            const initialPosition = vertexBuffer.get(vertexId, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            vertexBuffer.get(vertexId, "position").assign(initialPosition);
+            vertexBuffer.get(vertexId, "prevPosition").assign(initialPosition.sub(this.uniforms.resetVelocity));
         })().compute(this.vertexCount);
 
         this.uniforms.resetTetStart = uniform(0, "uint");
@@ -638,22 +446,26 @@ export class FEMPhysics {
                 Return();
             });
             const tetId = this.uniforms.resetTetStart.add(instanceIndex).toVar();
-            const volume  = this.restVolumeBuffer.element(instanceIndex).toVar();
+            const volume  = tetBuffer.get(tetId, "restVolume").toVar();
 
             // Gather this tetrahedron's 4 vertex positions
-            const vertexIds = this.tetBuffer.element(tetId);
-            const pos0 = this.initialPositionBuffer.element(vertexIds.x).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
-            const pos1 = this.initialPositionBuffer.element(vertexIds.y).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
-            const pos2 = this.initialPositionBuffer.element(vertexIds.z).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
-            const pos3 = this.initialPositionBuffer.element(vertexIds.w).mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const vertexIds = tetBuffer.get(tetId, "vertexIds");
+            const pos0 = vertexBuffer.get(vertexIds.x, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const pos1 = vertexBuffer.get(vertexIds.y, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const pos2 = vertexBuffer.get(vertexIds.z, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const pos3 = vertexBuffer.get(vertexIds.w, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
 
-            this.restPosesBuffer.element(tetId.mul(4)).assign(vec4(pos0.xyz, volume));
-            this.restPosesBuffer.element(tetId.mul(4).add(1)).assign(vec4(pos1.xyz, volume))
-            this.restPosesBuffer.element(tetId.mul(4).add(2)).assign(vec4(pos2.xyz, volume))
-            this.restPosesBuffer.element(tetId.mul(4).add(3)).assign(vec4(pos3.xyz, volume))
-
-            this.quatsBuffer.element(tetId).assign(vec4(0,0,0,1));
+            restPosesBuffer.get(tetId.mul(4), "position").assign(pos0);
+            restPosesBuffer.get(tetId.mul(4).add(1), "position").assign(pos1);
+            restPosesBuffer.get(tetId.mul(4).add(2), "position").assign(pos2);
+            restPosesBuffer.get(tetId.mul(4).add(3), "position").assign(pos3);
+            tetBuffer.get(tetId, "quat").assign(vec4(0,0,0,1));
         })().compute(this.tetCount);
+
+
+        // ##################################
+        //  CREATE MOUSE INTERACTION KERNELS
+        // ##################################
 
         this.uniforms.mouseRayOrigin = uniform(new THREE.Vector3());
         this.uniforms.mouseRayDirection = uniform(new THREE.Vector3());
@@ -663,8 +475,8 @@ export class FEMPhysics {
             });
 
             const { mouseRayOrigin, mouseRayDirection } = this.uniforms;
-            const position = this.positionBuffer.element(instanceIndex).toVar();
-            const prevPosition = this.prevPositionBuffer.element(instanceIndex);
+            const position = vertexBuffer.get(instanceIndex, "position").toVar();
+            const prevPosition = vertexBuffer.get(instanceIndex, "prevPosition");
 
             const dist = cross(mouseRayDirection, position.sub(mouseRayOrigin)).length()
             const force = dist.mul(0.3).oneMinus().max(0.0).pow(0.5);
@@ -673,16 +485,23 @@ export class FEMPhysics {
         await this.renderer.computeAsync(this.kernels.applyMouseEvent); //call once to compile
 
 
+        // #############################
+        //  CREATE POSITION READ KERNEL
+        // #############################
+
         const centerVertexArray = new Uint32Array(this.objectData.map(d => d.centerVertex.id));
         this.centerVertexBuffer = instancedArray(centerVertexArray, 'uint');
         this.positionReadbackBuffer = instancedArray(new Float32Array(this.objects.length*3), 'vec3');
         this.kernels.readPositions = Fn(()=>{
             const centerVertex = this.centerVertexBuffer.element(instanceIndex);
-            const position = this.positionBuffer.element(centerVertex);
+            const position = vertexBuffer.get(centerVertex, "position");
             this.positionReadbackBuffer.element(instanceIndex).assign(position);
         })().compute(this.objects.length);
 
-        this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
+
+        // ####################
+        //  BAKE OTHER OBJECTS
+        // ####################
 
         const objectPromises = this.objects.map(object => object.bake(this));
         await Promise.all(objectPromises);
@@ -726,7 +545,7 @@ export class FEMPhysics {
         this.frameNum++;
 
         if (this.frameNum % 50 === 0) {
-            this.readPositions().then(() => {}); // no await to prevent blocking!
+            //this.readPositions().then(() => {}); // no await to prevent blocking!
         }
 
         const { stepsPerSecond } = conf;
@@ -751,23 +570,12 @@ export class FEMPhysics {
             await this.renderer.computeAsync(this.kernels.solveElemPass);
             await this.renderer.computeAsync(this.kernels.solveCollisions);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
-            //await this.renderer.computeAsync(this.kernels.fillHashMap);
-            //await this.renderer.computeAsync(this.kernels.solveCollisionsVertex);
-            //await this.renderer.computeAsync(this.kernels.copyPositions);
         }
 
-        //await this.renderer.computeAsync(this.kernels.fillHashMap);
 
-        //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.hashBuffer.value));
-        //console.log(hashMap);
-        //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.triangleBuffer.value));
-        //console.log(hashMap);
         if (this.frameNum > 1) {
             //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.initialTetPositionBuffer.value));
             //console.log(hashMap);
         }
-
-        //await this.readPositions();
-
     }
 }

@@ -1,36 +1,16 @@
 import * as THREE from "three/webgpu";
-//import virusModel from 'bundle-text:./geometry/virus_hollow75.msh';
-//import virusObj from 'bundle-text:./geometry/virus.obj';
-//import skullModel from 'bundle-text:./geometry/skull4.msh';
-//import skullObj from 'bundle-text:./geometry/skull.obj';
-//import {loadModel, processObj} from "../geometry/loadModel";
-
 import {
-    attribute, cross, dot,
+    attribute,
+    cross,
     float,
     Fn,
-    instancedArray,
-    instanceIndex,
-    Loop, mix, mul, normalize, normalView, positionLocal, smoothstep, struct,
+    mul,
     transformNormalToView,
     varying,
-    vec3, vec4
+    vec3,
+    vec4
 } from "three/tsl";
-
-const Rotate = /*#__PURE__*/ Fn( ( [ pos_immutable, quat_immutable ] ) => {
-    const quat = vec4( quat_immutable ).toVar();
-    const pos = vec3( pos_immutable ).toVar();
-
-    return pos.add( mul( 2.0, cross( quat.xyz, cross( quat.xyz, pos ).add( quat.w.mul( pos ) ) ) ) );
-} ).setLayout( {
-    name: 'Rotate',
-    type: 'vec3',
-    inputs: [
-        { name: 'pos', type: 'vec3' },
-        { name: 'quat', type: 'vec4' }
-    ]
-} );
-
+import {rotateByQuat} from "./math.js";
 
 export class SoftbodyModel {
     physics = null;
@@ -44,23 +24,8 @@ export class SoftbodyModel {
 
         this.id = this.physics._addObject(this);
 
-        //this.isSkull = Math.random() > 0.8;
-
-        //const { tetVerts, tetIds } = Cube;
-        //const model = virus; // loadModel(virusModel, virusObj);
-        //const model = this.isSkull ? skull : virus; //loadModel(skullModel, skullObj);
-        //const model = loadModel(skullModel, skullObj);
-
         this.createTetrahedralGeometry(geometry.model);
         this.createGeometry(geometry.model, geometry.material);
-
-        //console.log(skull);
-        //console.log(tetVerts.map(v=>Math.round(v*10000)/10000));
-
-
-        //this.object = new THREE.Object3D();
-
-        //this.createGeometry(virusObj);
     }
 
     createTetrahedralGeometry(model) {
@@ -79,7 +44,6 @@ export class SoftbodyModel {
             const d = this.vertices[tetIds[i+3]];
             this.tets.push(this.physics.addTet(this.id,a,b,c,d));
         }
-        this.findSurface();
     }
 
     createGeometry(model, material) {
@@ -131,188 +95,6 @@ export class SoftbodyModel {
     createMesh() {
     }
 
-    findSurface() {
-        const triangleDict = {};
-        const triangles = [];
-        const addTriangle = (v0, v1, v2, v3) => {
-            const id = [v0.id, v1.id, v2.id].sort((a,b) => { return a - b; }).join('.');
-            if (triangleDict[id]) {
-                delete triangleDict[id];
-            } else {
-                triangleDict[id] = [v0, v1, v2, v3];
-            }
-        };
-
-        this.tets.forEach((tet) => {
-            const { v0,v1,v2,v3 } = tet;
-            addTriangle(v0, v1, v2, v3);
-            addTriangle(v1, v2, v3, v0);
-            addTriangle(v2, v3, v0, v1);
-            addTriangle(v3, v0, v1, v2);
-        });
-
-        const tangent = new THREE.Vector3();
-        const bitangent = new THREE.Vector3();
-        const toInner = new THREE.Vector3();
-
-        Object.keys(triangleDict).forEach(key => {
-            const triangle = triangleDict[key];
-            let [v0, v1, v2, v3] = triangle;
-            tangent.copy(v0).sub(v1);
-            bitangent.copy(v0).sub(v2);
-            toInner.copy(v3).sub(v0);
-            if (tangent.cross(bitangent).dot(toInner) > 0) {
-                [v1, v2] = [v2, v1];
-            }
-            v0.isSurface = true;
-            v0.triangles.push([v1,v2]);
-            v1.isSurface = true;
-            v1.triangles.push([v2,v0]);
-            v2.isSurface = true;
-            v2.triangles.push([v0,v1]);
-            triangles.push([v0,v1,v2]);
-        });
-
-        const surfaceVertices = this.vertices.filter(v => v.isSurface);
-
-        /*console.log(this.tets.length + " tets");
-        console.log(this.vertices.length + " vertices");
-        console.log(surfaceVertices.length + " surfaceVertices");
-        console.log(triangles.length + " triangles");*/
-
-        this.triangles = triangles.map(t => {
-            const [v0,v1,v2] = t;
-            return this.physics.addTriangle(this.id,v0,v1,v2)
-        });
-    }
-/*
-    createImplicitGeometry() {
-        const triangleDict = {};
-        const triangles = [];
-        const addTriangle = (v0, v1, v2, v3) => {
-            const id = [v0.id, v1.id, v2.id].sort((a,b) => { return a - b; }).join('.');
-            if (triangleDict[id]) {
-                delete triangleDict[id];
-            } else {
-                triangleDict[id] = [v0, v1, v2, v3];
-            }
-        };
-
-        this.tets.forEach((tet) => {
-            const { v0,v1,v2,v3 } = tet;
-            addTriangle(v0, v1, v2, v3);
-            addTriangle(v1, v2, v3, v0);
-            addTriangle(v2, v3, v0, v1);
-            addTriangle(v3, v0, v1, v2);
-        });
-
-        const tangent = new THREE.Vector3();
-        const bitangent = new THREE.Vector3();
-        const toInner = new THREE.Vector3();
-
-        Object.keys(triangleDict).forEach(key => {
-            const triangle = triangleDict[key];
-            let [v0, v1, v2, v3] = triangle;
-            tangent.copy(v0).sub(v1);
-            bitangent.copy(v0).sub(v2);
-            toInner.copy(v3).sub(v0);
-            if (tangent.cross(bitangent).dot(toInner) > 0) {
-                [v1, v2] = [v2, v1];
-            }
-            v0.isSurface = true;
-            v0.triangles.push([v1,v2]);
-            v1.isSurface = true;
-            v1.triangles.push([v2,v0]);
-            v2.isSurface = true;
-            v2.triangles.push([v0,v1]);
-            triangles.push([v0,v1,v2]);
-        });
-
-        const surfaceVertices = this.vertices.filter(v => v.isSurface);
-        const indices = [];
-        const vertexIdArray = new Uint32Array(surfaceVertices.length);
-        const trianglePtrArray = new Uint32Array(surfaceVertices.length * 2); // x: ptr, y: length
-        const triangleArray = new Uint32Array(triangles.length * 2 * 3);
-        let trianglePtr = 0;
-
-        surfaceVertices.forEach((vertex,index) => {
-            vertexIdArray[index] = vertex.id;
-            vertex.geometryVertexId = index;
-            trianglePtrArray[index * 2 + 0] = trianglePtr;
-            trianglePtrArray[index * 2 + 1] = vertex.triangles.length;
-            vertex.triangles.forEach(([v1,v2]) => {
-                triangleArray[trianglePtr * 2 + 0] = v1.id;
-                triangleArray[trianglePtr * 2 + 1] = v2.id;
-                trianglePtr++;
-            });
-        });
-
-        triangles.forEach(triangle => {
-           const [v0,v1,v2] = triangle;
-           indices.push(v0.geometryVertexId);
-           indices.push(v1.geometryVertexId);
-           indices.push(v2.geometryVertexId);
-        });
-
-        //const triangleBuffer = instancedArray(triangleArray, 'uvec2');
-        //this.createMaterial(triangleBuffer);
-
-        const positionBuffer = new THREE.BufferAttribute(new Float32Array(vertexIdArray.length * 3), 3, false);
-        const vertexIdBuffer = new THREE.BufferAttribute(new Uint32Array(vertexIdArray), 1, false);
-        const trianglePtrBuffer = new THREE.BufferAttribute(trianglePtrArray, 2, false);
-
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', positionBuffer);
-        geometry.setAttribute('vertexId', vertexIdBuffer);
-        geometry.setAttribute('trianglePtr', trianglePtrBuffer);
-        geometry.setIndex(indices);
-
-        this.implicitTriangleBuffer = instancedArray(new Uint32Array(triangleArray), 'uvec2').label("triangles");
-        this.createImplicitMaterial();
-
-        const mesh = new THREE.Mesh(geometry, this.implicitMaterial);
-        mesh.castShadow = true;
-        mesh.frustumCulled = false;
-        this.object.add(mesh);
-        //const mesh = new THREE.Mesh(geometry, this.material);
-        //mesh.frustumCulled = false;
-        //this.object.add(mesh);
-
-
-    }
-
-    createImplicitMaterial() {
-        this.implicitMaterial = new THREE.MeshSSSNodeMaterial({
-            metalness: 0.95,
-            roughness: 0.109385,
-            color: 0xFF00FF,
-        });
-        this.implicitMaterial.thicknessColorNode = vec3(1,0,1).mul(0.5);
-
-        const vNormal = varying(vec3(0), "v_normalView");
-        this.implicitMaterial.positionNode = Fn(() => {
-            const vertexId = attribute('vertexId');
-            const position = this.physics.positionBuffer.element(vertexId).xyz.toVar();
-
-            const trianglePtr = attribute('trianglePtr');
-            const ptrStart = trianglePtr.x.toVar();
-            const ptrEnd = ptrStart.add(trianglePtr.y).toVar();
-            const normal = vec3().toVar();
-            Loop({ start: ptrStart, end: ptrEnd,  type: 'uint', condition: '<' }, ({ i })=>{
-                const triangle = this.implicitTriangleBuffer.element(i);
-                const v1 = this.physics.positionBuffer.element(triangle.x).xyz;
-                const v2 = this.physics.positionBuffer.element(triangle.y).xyz;
-                const tangent = v1.sub(position);
-                const bitangent = v2.sub(position);
-                normal.addAssign(cross(tangent,bitangent));
-            });
-            vNormal.assign(transformNormalToView(normal));
-
-            return position;
-        })();
-        this.implicitMaterial.normalNode = vNormal.normalize();
-    }*/
-
     async reset() {
         const scale = 3; //2.0 + Math.random() * 1;
 
@@ -335,6 +117,7 @@ export class SoftbodyModel {
         this.spawned = true;
         this.outOfSight = false;
     }
+
     async initPos() {
         const scale = 2.0 + Math.random() * 1;
         const position = new THREE.Vector3((Math.random() - 0.5) * 4000 + 4000, 4000, (Math.random() - 0.5) * 4000);
@@ -352,24 +135,11 @@ export class SoftbodyModel {
     }
 
     async bake() {
-        //this.createImplicitGeometry();
-        //this.createMesh();
 
     }
 
     static createMaterial(physics, materialClass) {
-        const material = new materialClass({
-            //map: SoftbodyModel.colorMap,
-            //color: 0xFFAAFF,
-            //roughnessMap: SoftbodyModel.roughnessMap,
-            //metalnessMap: SoftbodyModel.metallicMap,
-            //metalness:1.0,
-            //normalMap: SoftbodyModel.normalMap,
-            //normalScale: new THREE.Vector2(1,1),
-            //iridescence: 1.0,
-            //transparent: true,
-            //opacity:0.9,
-        });
+        const material = new materialClass();
 
         const vNormal = varying(vec3(0), "v_normalView");
         const vDistance = varying(float(0), "v_distance");
@@ -378,13 +148,13 @@ export class SoftbodyModel {
 
             const vertexIds = attribute("vertexIds");
             const baryCoords = attribute("tetBaryCoords");
-            const v0 = physics.positionBuffer.element(vertexIds.x).xyz.toVar();
-            const v1 = physics.positionBuffer.element(vertexIds.y).xyz.toVar();
-            const v2 = physics.positionBuffer.element(vertexIds.z).xyz.toVar();
-            const v3 = physics.positionBuffer.element(vertexIds.w).xyz.toVar();
-            const quat = physics.quatsBuffer.element(tetId);
+            const v0 = physics.vertexBuffer.get(vertexIds.x, "position").xyz.toVar();
+            const v1 = physics.vertexBuffer.get(vertexIds.y, "position").xyz.toVar();
+            const v2 = physics.vertexBuffer.get(vertexIds.z, "position").xyz.toVar();
+            const v3 = physics.vertexBuffer.get(vertexIds.w, "position").xyz.toVar();
+            const quat = physics.tetBuffer.get(tetId, "quat");
 
-            const normal = Rotate(attribute("normal"), quat);
+            const normal = rotateByQuat(attribute("normal"), quat);
             vNormal.assign(transformNormalToView(normal));
             vDistance.assign(attribute("position").length());
 
@@ -401,33 +171,6 @@ export class SoftbodyModel {
             return position;
         })();
 
-        /*
-        const testStruct = struct( {
-            vertices: { type: 'ivec3' },
-            objectId: { type: 'uint' },
-            ptr: { type: 'int' },
-        } );
-        const triangleStride = 8;
-
-        const array = [0,1,2];
-        const triangleArrayI32 = new Int32Array(array.length * triangleStride);
-        const triangleArrayF32 = new Float32Array(triangleArrayI32.buffer);
-        array.forEach((v, index) => {
-            triangleArrayI32[index*triangleStride+4] = index;
-        });
-        const testBuffer = instancedArray(triangleArrayI32, testStruct);
-
-        material.fragmentNode = Fn(() => {
-            return vec4(vec3(float(testBuffer.element(2).get('ptr')).div(2)), 1);
-        })();*/
-        /*material.emissiveNode = Fn(() => {
-            const dp = dot(vec3(0,0,1), normalView).max(0).pow(4);
-            const color = vec3(1,0,0.5);
-            const of = mix(0.0, 1.0, smoothstep(1.3,1.6, vDistance));
-            return dp.mul(of).mul(color);
-        })();*/
-
-        //SoftbodyModel.material = material;
         return material;
     }
 }
