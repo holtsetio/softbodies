@@ -111,12 +111,12 @@ export const quat_mult = /*#__PURE__*/ Fn( ( [ q1_immutable, q2_immutable ] ) =>
     ]
 } );
 
-export const extractRotation = /*#__PURE__*/ Fn( ( [ A_immutable, q_immutable ] ) => {
+export const extractRotation = /*#__PURE__*/ Fn( ( [ A_immutable, q_immutable, steps = 3 ] ) => {
 
     const q = vec4( q_immutable ).toVar();
     const A = mat3( A_immutable ).toVar();
 
-    Loop( { start: int( 0 ), end: int( 9 ), name: 'iter' }, ( { iter } ) => {
+    Loop( { start: int( 0 ), end: steps, name: 'iter' }, ( { iter } ) => {
 
         const X = vec3( rotateByQuat( vec3( 1.0, 0.0, 0.0 ), q ) ).toVar();
         const Y = vec3( rotateByQuat( vec3( 0.0, 1.0, 0.0 ), q ) ).toVar();
@@ -139,7 +139,8 @@ export const extractRotation = /*#__PURE__*/ Fn( ( [ A_immutable, q_immutable ] 
     type: 'vec4',
     inputs: [
         { name: 'A', type: 'mat3' },
-        { name: 'q', type: 'vec4' }
+        { name: 'q', type: 'vec4' },
+        { name: 'steps', type: 'int' }
     ]
 } );
 

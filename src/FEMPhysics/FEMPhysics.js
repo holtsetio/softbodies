@@ -22,7 +22,7 @@ import {
     Break,
     normalize, Return, uniform, select, time, mix, min, uniformArray, ivec3, atomicAdd, atomicStore, atomicFunc, uvec3, struct
 } from "three/tsl";
-import {SoftbodyModel} from "./softbodyModel";
+import {SoftbodyGeometry} from "./softbodyGeometry.js";
 import {conf} from "../conf";
 import {StructuredArray} from "./structuredArray.js";
 import { murmurHash13, rotateByQuat, quat_conj, quat_mult, extractRotation } from "./math.js";
@@ -32,11 +32,11 @@ export class FEMPhysics {
 
     tets = [];
 
+    geometries = [];
+
     objects = [];
 
     objectData = [];
-
-    geometries = [];
 
     vertexCount = 0;
 
@@ -58,6 +58,7 @@ export class FEMPhysics {
 
     constructor(renderer) {
         this.renderer = renderer;
+        this.object = new THREE.Object3D();
     }
 
     addVertex(objectId,x,y,z) {
@@ -96,7 +97,9 @@ export class FEMPhysics {
     _addObject(object) {
         const id = this.objects.length;
         this.objects.push(object);
-        this.objectData.push({
+
+        const params = {
+            id,
             centerVertexDistance: 1e9,
             centerVertex: null,
             tetStart: this.tetCount,
@@ -104,11 +107,23 @@ export class FEMPhysics {
             vertexStart: this.vertexCount,
             vertexCount: 0,
             position: new THREE.Vector3(),
-        });
-        return id;
+        };
+
+        this.objectData.push(params);
+        return params;
     }
 
     addGeometry(model, materialClass = THREE.MeshPhysicalNodeMaterial) {
+        const geometry = new SoftbodyGeometry(this, model, materialClass);
+        this.geometries.push(geometry);
+        return geometry;
+    }
+
+    addInstance(geometry) {
+        return geometry.addInstance();
+    }
+
+    /*addGeometry(model, materialClass = THREE.MeshPhysicalNodeMaterial) {
         const id = this.geometries.length;
         const material = SoftbodyModel.createMaterial(this, materialClass);
         const geometry = { id, model, material }
@@ -119,7 +134,7 @@ export class FEMPhysics {
     addInstance(geometry) {
         const object = new SoftbodyModel(this, geometry);
         return object;
-    }
+    }*/
 
     addCollider(collider) {
         this.colliders.push(collider);
@@ -225,7 +240,9 @@ export class FEMPhysics {
         this.uniforms.time = uniform(0, "float");
         this.uniforms.dt = uniform(1, "float");
         this.uniforms.gravity = uniform(new THREE.Vector3(0,-9.81*2,0), "vec3");
-        this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
+        //this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
+        this.uniforms.rotationRefinementSteps = uniform(4, "int");
+        conf.settings.addBinding(this.uniforms.rotationRefinementSteps, "value", { min: 1, max: 9, step: 1 });
 
 
         // ################
@@ -291,7 +308,7 @@ export class FEMPhysics {
             covariance.element(0).xyz.addAssign(ref3.xxx.mul(pos3));
             covariance.element(1).xyz.addAssign(ref3.yyy.mul(pos3));
             covariance.element(2).xyz.addAssign(ref3.zzz.mul(pos3));
-            const rotation = extractRotation(covariance, vec4(0.0, 0.0, 0.0, 1.0));
+            const rotation = extractRotation(covariance, vec4(0.0, 0.0, 0.0, 1.0), this.uniforms.rotationRefinementSteps);
 
             // Write out the undeformed tetrahedron
             const prevQuat = tetBuffer.get(instanceIndex, "quat").toVar();
@@ -503,8 +520,8 @@ export class FEMPhysics {
         //  BAKE OTHER OBJECTS
         // ####################
 
-        const objectPromises = this.objects.map(object => object.bake(this));
-        await Promise.all(objectPromises);
+        const geometryPromises = this.geometries.map(geom => geom.bake(this));
+        await Promise.all(geometryPromises);
     }
 
     async readPositions() {
@@ -558,7 +575,7 @@ export class FEMPhysics {
 
         for (let i=0; i<this.objects.length; i++) {
             const object = this.objects[i];
-            this.uniforms.scales.array[i] = THREE.MathUtils.smoothstep(Math.min(object.age * 3, 1.0), 0, 1);
+            //this.uniforms.scales.array[i] = THREE.MathUtils.smoothstep(Math.min(object.age * 3, 1.0), 0, 1);
             await object.update(interval, elapsed);
         }
 

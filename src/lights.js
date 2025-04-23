@@ -12,10 +12,10 @@ export class Lights {
         lightTarget.position.set(10,-10,10);
         light.target = lightTarget;
 
-        const light2 = new THREE.PointLight(0xffffff, 1, 0, 0);
+        /*const light2 = new THREE.PointLight(0xffffff, 1, 0, 0);
         light2.position.set(30, 10, 50);
         this.object.add(light2);
-        this.object.add(new THREE.PointLightHelper(light2));
+        this.object.add(new THREE.PointLightHelper(light2));*/
 
         this.object.add(light);
         this.object.add(lightTarget);

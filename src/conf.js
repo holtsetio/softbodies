@@ -33,6 +33,7 @@ class Conf {
         settings.addBinding(this, "stepsPerSecond", { min: 30, max: 300, step: 60 });
         settings.addBinding(this, "wireframe");
 
+        this.settings = settings;
         this.gui = gui;
     }
 
