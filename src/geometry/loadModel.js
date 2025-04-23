@@ -180,6 +180,11 @@ export const generateTube = () => {
         tetVertsRaw.push( -rr, -px, rr);
         tetVertsRaw.push( -rr, -px, -rr);
     }
+    tetVertsRaw.push( 0, (length*0.5 + radius), 0);
+    const bottomVert = tetVertsRaw.length / 3;
+    tetVertsRaw.push( 0, -(length*0.5 + radius), 0);
+    const topVert = tetVertsRaw.length / 3;
+
     for (let x=0; x<segments; x++) {
         const v = (n) => x*4+n;
         tetIdsRaw.push(v(1), v(4), v(8), v(7));
@@ -189,8 +194,13 @@ export const generateTube = () => {
         tetIdsRaw.push(v(1), v(2), v(3), v(7));
         tetIdsRaw.push(v(1), v(3), v(4), v(7));
     }
+    tetIdsRaw.push(bottomVert, 1,2,3);
+    tetIdsRaw.push(bottomVert, 1,3,4);
+    tetIdsRaw.push(topVert, segments*4+1,segments*4+2,segments*4+3);
+    tetIdsRaw.push(topVert, segments*4+1,segments*4+3,segments*4+4);
 
-    const geometry = new THREE.CylinderGeometry( radius, radius, length, 8, segments );
+    //const geometry = new THREE.CylinderGeometry( radius, radius, length, 8, segments );
+    const geometry = new THREE.CapsuleGeometry(radius, length, 4, 8, segments );
     //geometry.rotateZ(Math.PI/2);
     const { tetVerts, tetIds, vertices, tets } = processTetGeometry(tetVertsRaw, tetIdsRaw);
     const { attachedTets, baryCoords, normals, uvs, positions, indices} = processGeometry(geometry, tets);

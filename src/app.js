@@ -94,7 +94,7 @@ class App {
 
     softbodies = [];
 
-    softbodyCount = 30;
+    softbodyCount = 100;
 
     lastSoftbody = 0;
 

@@ -123,19 +123,6 @@ export class FEMPhysics {
         return geometry.addInstance();
     }
 
-    /*addGeometry(model, materialClass = THREE.MeshPhysicalNodeMaterial) {
-        const id = this.geometries.length;
-        const material = SoftbodyModel.createMaterial(this, materialClass);
-        const geometry = { id, model, material }
-        this.geometries.push(geometry);
-        return geometry;
-    }
-
-    addInstance(geometry) {
-        const object = new SoftbodyModel(this, geometry);
-        return object;
-    }*/
-
     addCollider(collider) {
         this.colliders.push(collider);
     }
