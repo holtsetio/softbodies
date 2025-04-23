@@ -1,22 +1,18 @@
 import * as THREE from "three/webgpu";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
-//import Stats from "three/examples/jsm/libs/stats.module"
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
 import {Lights} from "./lights";
 
-//import hdrjpg from "./assets/clear_sky_afternoon_sky_dome_2k.jpg";
 import hdri from "./assets/autumn_field_puresky_1k.hdr";
 
 import {
     dot, float,
     Fn,
-    fog,
     mix,
     normalView,
     normalWorld,
     pmremTexture,
-    rangeFogFactor,
     smoothstep, texture, uv, normalMap,
     varying, vec2,
     vec3
@@ -28,12 +24,6 @@ import CollisionGeometry from "./collisionGeometry";
 import virus from './geometry/virus';
 import skull from './geometry/skull3';
 import icosphere from './geometry/icosphere';
-//import skullModel from 'bundle-text:./geometry/skull4.msh';
-//import skullObj from 'bundle-text:./geometry/skull.obj';
-import {loadModelWithGeo} from "./geometry/loadModel";
-//import sphereModel from 'bundle-text:./geometry/icosphere_hollow.msh';
-//import sphereObj from 'bundle-text:./geometry/icosphere.obj';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import normalMapFileVirus from './geometry/textures/virus_normal.png';
 import roughnessMapFileVirus from './geometry/textures/virus_roughness.jpg';
@@ -46,19 +36,13 @@ import roughnessMapFileSnake from './geometry/textures/fabrics_0066_roughness_1k
 import colorMapFileSnake from './geometry/textures/fabrics_0066_color_1k.jpg';
 import aoMapFileSnake from './geometry/textures/fabrics_0066_ao_1k.jpg';
 
-import earthColorFile from './geometry/textures/2k_earth_daymap.jpg';
+/*import earthColorFile from './geometry/textures/2k_earth_daymap.jpg';
 import earthNormalFile from './geometry/textures/2k_earth_normal_map.png';
-import earthSpecularFile from './geometry/textures/2k_earth_specular_map.png';
-
-import alienColorFile from './geometry/textures/Alien_Muscle_001_COLOR.jpg';
-import alienNormalFile from './geometry/textures/Alien_Muscle_001_NORM.jpg';
-import alienAoFile from './geometry/textures/Alien_Muscle_001_OCC.jpg';
-import alienSpecularFile from './geometry/textures/Alien_Muscle_001_SPEC.jpg';
+import earthSpecularFile from './geometry/textures/2k_earth_specular_map.png';*/
 
 import {conf} from "./conf";
 import {Info} from "./info";
 import {generateTube} from "./geometry/loadModel";
-import {SoftbodyGeometry} from "./FEMPhysics/softbodyGeometry.js";
 
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
@@ -142,19 +126,14 @@ class App {
         this.lights = new Lights();
         this.scene.add(this.lights.object);
 
-
         this.physics = new FEMPhysics(this.renderer);
         this.scene.add(this.physics.object);
-        //this.physics.addObject(SoftbodyModel);
 
-        //const icosphereGeo = BufferGeometryUtils.mergeVertices(new THREE.IcosahedronGeometry(1,4));
-        //const icosphere = loadModelWithGeo(sphereModel, icosphereGeo);
         const tube = generateTube();
         const tubeGeometry = this.physics.addGeometry(tube)
         const virusGeometry = this.physics.addGeometry(virus);
         const skullGeometry = this.physics.addGeometry(skull);
         const sphereGeometry = this.physics.addGeometry(icosphere);
-        //const skullGeometry = this.physics.addGeometry(loadModel(skullModel,skullObj));
 
 
         {
@@ -167,19 +146,14 @@ class App {
             tubeGeometry.material.colorNode = texture(colorMap, newUv);
         }
         {
-            const mapFiles = [earthColorFile, earthNormalFile, earthSpecularFile];
+            /*const mapFiles = [earthColorFile, earthNormalFile, earthSpecularFile];
             const [ colorMap, normalMapTexture, specularMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
             sphereGeometry.material.normalNode = normalMap(texture(normalMapTexture), vec2(3,3));
             sphereGeometry.material.roughnessNode = texture(specularMap).oneMinus();
-            sphereGeometry.material.colorNode = texture(colorMap);
-            sphereGeometry.material.metalness = 0.9;
-            sphereGeometry.material.roughness = 0.05;
-            sphereGeometry.material.thickness = 0.0;
+            sphereGeometry.material.colorNode = texture(colorMap);*/
+            sphereGeometry.material.metalness = 0.39;
+            sphereGeometry.material.roughness = 0.45;
             sphereGeometry.material.color = new THREE.Color(0,0.8,1);
-            sphereGeometry.material.thicknessColorNode = Fn(() => {
-                return vec3(0,0.8,1);
-            })();
-            //sphereGeometry.material.thicknessNode = float(1);
         }
         {
             const mapFiles = [normalMapFileVirus, roughnessMapFileVirus];

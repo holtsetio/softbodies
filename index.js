@@ -51,10 +51,14 @@ const run = async ()=>{
 
     const app = new App(renderer);
     await app.init(updateLoadingProgressBar);
-    window.addEventListener("resize", ()=>{
+
+    const resize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         app.resize(window.innerWidth, window.innerHeight);
-    });
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
     const veil = document.getElementById("veil");
     veil.style.opacity = 0;
     const progressBar = document.getElementById("progress-bar");
