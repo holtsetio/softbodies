@@ -159,7 +159,7 @@ export class FEMPhysics {
         const restPosesBuffer = new StructuredArray(restposeStruct, this.tetCount * 4, "restPoses");
         this.restPosesBuffer = restPosesBuffer;
 
-        let maxR = 0;
+        let maxRadius = 0;
         this.tets.forEach((tet,index) => {
             const { v0, v1, v2, v3 } = tet;
             const center = v0.clone().add(v1).add(v2).add(v3).multiplyScalar(0.25);
@@ -168,7 +168,7 @@ export class FEMPhysics {
             const c = v3.clone().sub(v0);
             const V = Math.abs(a.cross(b).dot(c)) / 6;
             const radius = (Math.pow((3/4) * V / Math.PI, 1/3));
-            maxR = Math.max(maxR, radius);
+            maxRadius = Math.max(maxRadius, radius);
             const vs = [v0, v1, v2, v3];
             vs.forEach((vertex,subindex) => {
                 restPosesBuffer.set(index*4 + subindex, "position", vertex);
@@ -182,7 +182,7 @@ export class FEMPhysics {
             tetBuffer.set(index, "objectId", tet.objectId);
             tetBuffer.set(index, "radius", radius);
         });
-        console.log("maxRadius", maxR);
+        console.log("maxRadius", maxRadius);
 
 
         const vertexStruct = {
@@ -227,7 +227,7 @@ export class FEMPhysics {
         this.influencerBuffer = instancedArray(influencerArray, 'uint');
 
         const hashMapSize = 1048573; //
-        const hashingCellSize = 0.36
+        const hashingCellSize = maxRadius * 3 * 2; //0.36
         this.hashBuffer = instancedArray(hashMapSize, "int").toAtomic();
 
         // #################
@@ -240,7 +240,7 @@ export class FEMPhysics {
         this.uniforms.dt = uniform(1, "float");
         this.uniforms.gravity = uniform(new THREE.Vector3(0,-9.81*2,0), "vec3");
         //this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
-        this.uniforms.rotationRefinementSteps = uniform(4, "int");
+        this.uniforms.rotationRefinementSteps = uniform(2, "int");
         conf.settings.addBinding(this.uniforms.rotationRefinementSteps, "value", { min: 1, max: 9, step: 1 });
 
 

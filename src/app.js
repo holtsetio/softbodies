@@ -188,7 +188,7 @@ class App {
         }
 
         for (let i=0; i<this.softbodyCount; i++) {
-            //const geometries = [tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
+            //const geometries = [sphereGeometry];
             const geometries = [virusGeometry, skullGeometry, sphereGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
             const softbody = this.physics.addInstance(geometries[i%geometries.length]); //i % 4 === 0 ? skullGeometry : virusGeometry);
             this.softbodies.push(softbody);
