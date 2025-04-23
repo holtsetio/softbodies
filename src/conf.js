@@ -30,7 +30,7 @@ class Conf {
             title: "settings",
             expanded: false,
         });
-        settings.addBinding(this, "stepsPerSecond", { min: 30, max: 300, step: 60 });
+        settings.addBinding(this, "stepsPerSecond", { min: 120, max: 300, step: 60 });
         settings.addBinding(this, "wireframe");
 
         this.settings = settings;

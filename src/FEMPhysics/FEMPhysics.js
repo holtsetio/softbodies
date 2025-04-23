@@ -180,7 +180,7 @@ export class FEMPhysics {
             tetBuffer.set(index, "restVolume", V);
             tetBuffer.set(index, "quat", [0,0,0,1]);
             tetBuffer.set(index, "objectId", tet.objectId);
-            tetBuffer.set(index, "radius", radius);
+            tetBuffer.set(index, "radius", radius * 0.9);
         });
         console.log("maxRadius", maxRadius);
 
@@ -200,7 +200,7 @@ export class FEMPhysics {
         let influencerPtr = 0;
         this.vertices.forEach((vertex, index) => {
             vertexBuffer.set(index, "initialPosition", vertex);
-            vertexBuffer.set(index, "position", vertex);
+            //vertexBuffer.set(index, "position", vertex);
             vertexBuffer.set(index, "prevPosition", vertex);
             vertexBuffer.set(index, "influencerPtr", influencerPtr);
             vertexBuffer.set(index, "influencerCount", vertex.influencers.length);
@@ -227,7 +227,7 @@ export class FEMPhysics {
         this.influencerBuffer = instancedArray(influencerArray, 'uint');
 
         const hashMapSize = 1048573; //
-        const hashingCellSize = maxRadius * 3 * 2; //0.36
+        const hashingCellSize = maxRadius * 2; //0.36
         this.hashBuffer = instancedArray(hashMapSize, "int").toAtomic();
 
         // #################
@@ -383,14 +383,14 @@ export class FEMPhysics {
                                 const initialPosition2 = tetBuffer.get(tetPtr, "initialPosition")
                                 const delta = initialPosition2.sub(initialPosition).toVar();
                                 const distSquared = dot(delta,delta);
-                                checkCollision.assign(select(distSquared.greaterThan(0.5*0.5), uint(1), uint(0)));
+                                checkCollision.assign(select(distSquared.greaterThan(1.5*1.5), uint(1), uint(0)));
                             });
 
                             If(checkCollision.equal(uint(1)), () => {
                                 const centroid_2 = tetBuffer.get(tetPtr, "centroid").toVar("centroid2");
                                 const radius2 = tetBuffer.get(tetPtr, "radius").toVar();
 
-                                const minDist = radius.add(radius2).mul(3).mul(1.0);
+                                const minDist = radius.add(radius2);
                                 const dist = centroid.distance(centroid_2);
                                 const dir = centroid.sub(centroid_2).div(dist);
                                 const force = minDist.sub(dist).max(0);

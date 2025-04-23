@@ -18,7 +18,7 @@ export class Lights {
         light.castShadow = true; // default false
         light.shadow.mapSize.width = 512*2*2; // default
         light.shadow.mapSize.height = 512*2*2; // default
-        light.shadow.bias =  -0.00005;
+        light.shadow.bias =  -0.000005;
             light.shadow.camera.near = 0.5; // default
             light.shadow.camera.far = 150;
 

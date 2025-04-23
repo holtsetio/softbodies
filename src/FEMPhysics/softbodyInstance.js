@@ -24,9 +24,9 @@ export class SoftbodyInstance {
     createTetrahedralGeometry() {
         const { tetVerts, tetIds } = this.geometry.model;
         for (let i=0; i < tetVerts.length; i += 3) {
-            const x = tetVerts[i];
-            const y = tetVerts[i+1];
-            const z = tetVerts[i+2];
+            const x = tetVerts[i]*3;
+            const y = tetVerts[i+1]*3;
+            const z = tetVerts[i+2]*3;
             const vertex = this.physics.addVertex(this.id,x,y,z);
             this.vertices.push(vertex);
         }
@@ -40,8 +40,7 @@ export class SoftbodyInstance {
     }
 
     async reset() {
-        const scale = 3; //2.0 + Math.random() * 1;
-
+        const scale = 1; //2.0 + Math.random() * 1;
         const radius = 50;
         const phi = Math.random() * Math.PI * 2;
         const theta = Math.random() * Math.PI;
@@ -50,7 +49,8 @@ export class SoftbodyInstance {
         const z = radius * Math.sin(theta) * Math.sin(phi);
 
         const position = new THREE.Vector3(x,y,z);
-        const velocity = new THREE.Vector3(0,-0.005,0.03);
+        //const velocity = new THREE.Vector3(0,-0.005,0.03);
+        const velocity = new THREE.Vector3(0,0, 0);
         await this.physics.resetObject(this.id, position, scale, velocity);
         this.age = 0;
         //this.object.visible = true;
