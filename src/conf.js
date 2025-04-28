@@ -50,13 +50,13 @@ class Conf {
             ],
             value: 'mixed',
         }).on('change', (ev) => {
-            console.log(ev);
+            //console.log(ev);
             this.scene = ev.value;
         });
 
         settings.addBinding(this, "bodies", { min: 20, max: this.maxBodies, step: 10 });
         settings.addBinding(this, "stepsPerSecond", { min: 120, max: 300, step: 60 });
-        settings.addBinding(this, "wireframe");
+        //settings.addBinding(this, "wireframe");
 
         this.settings = settings;
         this.gui = gui;

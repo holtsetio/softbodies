@@ -44,6 +44,9 @@ import {conf} from "./conf";
 import {Info} from "./info";
 import {generateTube} from "./geometry/loadModel";
 
+const rope = generateTube(25);
+const longRope = generateTube(500);
+
 const loadHdr = async (file) => {
     const texture = await new Promise(resolve => {
         new RGBELoader().load(file, result => { resolve(result); });
@@ -153,19 +156,22 @@ class App {
         this.physics = new FEMPhysics(this.renderer);
         this.scene.add(this.physics.object);
 
-        const tube = generateTube();
-        const tubeGeometry = this.physics.addGeometry(tube)
+
+        const ropeGeometry = this.physics.addGeometry(rope)
+        const longRopeGeometry = this.physics.addGeometry(longRope)
         const virusGeometry = this.physics.addGeometry(virus);
         const skullGeometry = this.physics.addGeometry(skull);
         const sphereGeometry = this.physics.addGeometry(icosphere);
         await progressCallback(0.5)
 
         {
-            const newUv = uv().mul(vec2(1.0,8.0));
-            tubeGeometry.material.normalNode = normalMap(texture(this.textures.ropeNormal, newUv), vec2(3,3));
-            tubeGeometry.material.roughnessNode = texture(this.textures.ropeRoughness, newUv);
-            tubeGeometry.material.aoNode = texture(this.textures.ropeAo, newUv);
-            tubeGeometry.material.colorNode = texture(this.textures.ropeColor, newUv);
+            [ropeGeometry, longRopeGeometry].forEach((geometry) => {
+                geometry.material.normalMap = this.textures.ropeNormal;
+                geometry.material.roughnessMap = this.textures.ropeRoughness;
+                geometry.material.aoMap = this.textures.ropeAo;
+                geometry.material.map = this.textures.ropeColor;
+                geometry.material.normalScale = new THREE.Vector2(3,3);
+            });
         }
         {
             /*const mapFiles = [earthColorFile, earthNormalFile, earthSpecularFile];
@@ -207,7 +213,7 @@ class App {
         let geometries = [];
         switch (this.sceneName) {
             case "mixed":
-                geometries = [virusGeometry, skullGeometry, sphereGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
+                geometries = [virusGeometry, skullGeometry, sphereGeometry, ropeGeometry, ropeGeometry, ropeGeometry, ropeGeometry, ropeGeometry, ropeGeometry, ropeGeometry];
                 break;
             case "spheres":
                 geometries = [sphereGeometry];
@@ -216,7 +222,10 @@ class App {
                 geometries = [skullGeometry];
                 break;
             case "ropes":
-                geometries = [tubeGeometry];
+                geometries = [ropeGeometry];
+                break;
+            case "longropes":
+                geometries = [longRopeGeometry];
                 break;
         }
 

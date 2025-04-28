@@ -165,11 +165,12 @@ export const loadModelWithGeo = (msh, geo) => {
     return model;
 };
 
-export const generateTube = () => {
-    const radius = 0.25*0.5;
+export const generateTube = (segments) => {
+    const radius = 0.125;
+    //const segments = 250;
     const capsuleRadius = Math.sqrt(4/Math.PI) * radius;
-    const length = 2.5*10*0.5*0.5*1;
-    const segments = 5*10*0.5*1;
+    const length = radius * segments * 2;
+
     const tetVertsRaw = [];
     const tetIdsRaw = [];
 
@@ -205,7 +206,12 @@ export const generateTube = () => {
     //geometry.rotateZ(Math.PI/2);
     const { tetVerts, tetIds, vertices, tets } = processTetGeometry(tetVertsRaw, tetIdsRaw);
     const { attachedTets, baryCoords, normals, uvs, positions, indices} = processGeometry(geometry, tets);
+
+    for (let i=1; i<uvs.length; i += 2) {
+        uvs[i] = Math.round(uvs[i]*length*10000)/10000;
+    }
+
     const model = { tetVerts, tetIds, attachedTets, baryCoords, normals, uvs, positions, indices };
-    print(model);
+    //print(model);
     return model;
 }
