@@ -36,4 +36,11 @@ export class TetVisualizer {
         this.object.add(this.vertexObject);
         this.object.add(this.tetObject);
     }
+
+    dispose() {
+        this.vertexMaterial.dispose();
+        this.vertexObject.geometry.dispose();
+        this.tetMaterial.dispose();
+        this.tetObject.geometry.dispose();
+    }
 }

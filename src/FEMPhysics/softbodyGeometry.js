@@ -86,6 +86,7 @@ export class SoftbodyGeometry {
     }
 
     updateCount() {
+        if (this.instances.length === 0) { return; }
         const totalCount = this.physics.objectCount;
         const count = this.instances.filter(i => i.id < totalCount && i.spawned).length;
         this.geometry.instanceCount = count;
@@ -138,5 +139,10 @@ export class SoftbodyGeometry {
         })();
 
         this.material = material;
+    }
+
+    dispose() {
+        this.geometry.dispose();
+        this.material.dispose();
     }
 }

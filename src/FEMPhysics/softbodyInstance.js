@@ -40,7 +40,7 @@ export class SoftbodyInstance {
     }
 
     async reset() {
-        const scale = 1; //2.0 + Math.random() * 1;
+        const scale = new THREE.Vector3(1,1,1); //2.0 + Math.random() * 1;
         const radius = 50;
         const phi = Math.random() * Math.PI * 2;
         const theta = Math.random() * Math.PI;
@@ -48,10 +48,12 @@ export class SoftbodyInstance {
         const y = radius * Math.cos(theta);
         const z = radius * Math.sin(theta) * Math.sin(phi);
 
+        const quaternion = new THREE.Quaternion().random().invert();
         const position = new THREE.Vector3(x,y,z);
+
         //const velocity = new THREE.Vector3(0,-0.005,0.03);
         const velocity = new THREE.Vector3(0,0, 0);
-        await this.physics.resetObject(this.id, position, scale, velocity);
+        await this.physics.resetObject(this.id, position, quaternion, scale, velocity);
         this.age = 0;
         //this.object.visible = true;
         this.spawned = true;

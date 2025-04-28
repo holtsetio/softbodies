@@ -1,8 +1,6 @@
 import * as THREE from "three/webgpu";
 
 export class Lights {
-    lights = [];
-
     constructor() {
         this.object = new THREE.Object3D();
         const light = new THREE.SpotLight(0xffffff, 5, 0, Math.PI * 0.075, 1, 0);
@@ -19,12 +17,17 @@ export class Lights {
         light.shadow.mapSize.width = 512*2*2; // default
         light.shadow.mapSize.height = 512*2*2; // default
         light.shadow.bias =  -0.000005;
-            light.shadow.camera.near = 0.5; // default
-            light.shadow.camera.far = 150;
+        light.shadow.camera.near = 0.5; // default
+        light.shadow.camera.far = 150;
 
+        this.light = light;
     }
 
     update(elapsed) {
 
+    }
+
+    dispose() {
+        this.light.shadow.dispose();
     }
 }

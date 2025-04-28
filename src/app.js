@@ -31,10 +31,10 @@ import colorMapFileSkull from './geometry/textures/skullColor.jpg';
 import normalMapFileSkull from './geometry/textures/skullNormal.png';
 import roughnessMapFileSkull from './geometry/textures/skullRoughness.jpg';
 
-import normalMapFileSnake from './geometry/textures/fabrics_0066_normal_opengl_1k.png';
-import roughnessMapFileSnake from './geometry/textures/fabrics_0066_roughness_1k.jpg';
-import colorMapFileSnake from './geometry/textures/fabrics_0066_color_1k.jpg';
-import aoMapFileSnake from './geometry/textures/fabrics_0066_ao_1k.jpg';
+import normalMapFileRope from './geometry/textures/fabrics_0066_normal_opengl_1k.png';
+import roughnessMapFileRope from './geometry/textures/fabrics_0066_roughness_1k.jpg';
+import colorMapFileRope from './geometry/textures/fabrics_0066_color_1k.jpg';
+import aoMapFileRope from './geometry/textures/fabrics_0066_ao_1k.jpg';
 
 /*import earthColorFile from './geometry/textures/2k_earth_daymap.jpg';
 import earthNormalFile from './geometry/textures/2k_earth_normal_map.png';
@@ -51,15 +51,6 @@ const loadHdr = async (file) => {
     return texture;
 }
 const textureLoader = new THREE.TextureLoader();
-const loadTexture = (file) => {
-    return new Promise(resolve => {
-        textureLoader.load(file, texture => {
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            resolve(texture);
-        });
-    });
-}
 
 class App {
     renderer = null;
@@ -78,11 +69,23 @@ class App {
 
     softbodies = [];
 
-    softbodyCount = conf.maxBodies;
+    softbodyCount = 10;
 
     lastSoftbody = 0;
 
     wireframe = false;
+
+    textures = {
+        ropeNormal: normalMapFileRope,
+        ropeColor: colorMapFileRope,
+        ropeRoughness: roughnessMapFileRope,
+        ropeAo: aoMapFileRope,
+        virusNormal: normalMapFileVirus,
+        virusRoughness: roughnessMapFileVirus,
+        skullColor: colorMapFileSkull,
+        skullRoughness: roughnessMapFileSkull,
+        skullNormal: normalMapFileSkull,
+    };
 
     constructor(renderer) {
         this.renderer = renderer;
@@ -91,6 +94,36 @@ class App {
     async init(progressCallback) {
         conf.init();
         this.info = new Info();
+
+        const texturePromises = Object.keys(this.textures).map(key => {
+            const file = this.textures[key];
+            return new Promise(resolve => {
+                textureLoader.load(file, texture => {
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    this.textures[key] = texture;
+                    resolve();
+                });
+            });
+        });
+        await Promise.all(texturePromises);
+        await progressCallback(0.2)
+        this.textures.hdri = await loadHdr(hdri);
+        await progressCallback(0.3)
+
+        this.sceneName = conf.scene;
+        await this.setupScene(progressCallback);
+
+        this.raycaster = new THREE.Raycaster();
+        this.renderer.domElement.addEventListener("pointerdown", (event) => { this.onPointerDown(event); });
+
+        await progressCallback(1.0, 100);
+    }
+
+    async setupScene(progressCallback) {
+        this.softbodyCount = conf.maxBodies;
+        this.wireframe = false;
+
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 120);
         this.camera.position.set(30,10, 27);
         this.camera.lookAt(0,0,0);
@@ -100,22 +133,19 @@ class App {
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        /*this.controls.enablePan = false;
+        this.controls.enablePan = false;
         this.controls.minDistance = 20;
-        this.controls.maxDistance = 60;*/
+        this.controls.maxDistance = 100;
+        this.controls.minPolarAngle = 0.2 * Math.PI;
+        this.controls.maxPolarAngle = 0.8 * Math.PI;
 
-        await progressCallback(0.1)
-
-        const hdriTexture = await loadHdr(hdri);
-        this.scene.backgroundNode = pmremTexture(hdriTexture, normalWorld);
-        this.scene.environmentNode = pmremTexture(hdriTexture, normalWorld).mul(0.5);
+        this.scene.backgroundNode = pmremTexture(this.textures.hdri, normalWorld);
+        this.scene.environmentNode = pmremTexture(this.textures.hdri, normalWorld).mul(0.5);
 
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 0.5;
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-        await progressCallback(0.5)
 
         this.lights = new Lights();
         this.scene.add(this.lights.object);
@@ -128,16 +158,14 @@ class App {
         const virusGeometry = this.physics.addGeometry(virus);
         const skullGeometry = this.physics.addGeometry(skull);
         const sphereGeometry = this.physics.addGeometry(icosphere);
-
+        await progressCallback(0.5)
 
         {
-            const mapFiles = [normalMapFileSnake, roughnessMapFileSnake, colorMapFileSnake, aoMapFileSnake];
-            const [ normalMapTexture, roughnessMap, colorMap, aoMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
             const newUv = uv().mul(vec2(1.0,8.0));
-            tubeGeometry.material.normalNode = normalMap(texture(normalMapTexture, newUv), vec2(3,3));
-            tubeGeometry.material.roughnessNode = texture(roughnessMap, newUv);
-            tubeGeometry.material.aoNode = texture(aoMap, newUv);
-            tubeGeometry.material.colorNode = texture(colorMap, newUv);
+            tubeGeometry.material.normalNode = normalMap(texture(this.textures.ropeNormal, newUv), vec2(3,3));
+            tubeGeometry.material.roughnessNode = texture(this.textures.ropeRoughness, newUv);
+            tubeGeometry.material.aoNode = texture(this.textures.ropeAo, newUv);
+            tubeGeometry.material.colorNode = texture(this.textures.ropeColor, newUv);
         }
         {
             /*const mapFiles = [earthColorFile, earthNormalFile, earthSpecularFile];
@@ -150,10 +178,8 @@ class App {
             sphereGeometry.material.color = new THREE.Color(0,0.8,1);
         }
         {
-            const mapFiles = [normalMapFileVirus, roughnessMapFileVirus];
-            const [ virusNormalMap, virusRoughnessMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
-            virusGeometry.material.normalMap = virusNormalMap;
-            virusGeometry.material.roughnessMap = virusRoughnessMap;
+            virusGeometry.material.normalMap = this.textures.virusNormal;
+            virusGeometry.material.roughnessMap = this.textures.virusRoughness;
             virusGeometry.material.metalness = 0.4;
             virusGeometry.material.iridescence = 1.0;
             virusGeometry.material.color = 0xFFAAFF;
@@ -172,20 +198,34 @@ class App {
             })();
         }
         {
-            const mapFiles = [colorMapFileSkull, normalMapFileSkull, roughnessMapFileSkull];
-            const [ skullColorMap, skullNormalMap, skullRoughnessMap ] = await Promise.all(mapFiles.map(f => loadTexture(f)));
-            skullGeometry.material.map = skullColorMap;
-            skullGeometry.material.normalMap = skullNormalMap;
-            skullGeometry.material.roughnessMap = skullRoughnessMap;
+            skullGeometry.material.map = this.textures.skullColor;
+            skullGeometry.material.normalMap = this.textures.skullNormal;
+            skullGeometry.material.roughnessMap = this.textures.skullRoughness;
             skullGeometry.material.metalness = 1.0;
             skullGeometry.material.iridescence = 1.0;
         }
+        let geometries = [];
+        switch (this.sceneName) {
+            case "mixed":
+                geometries = [virusGeometry, skullGeometry, sphereGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
+                break;
+            case "spheres":
+                geometries = [sphereGeometry];
+                break;
+            case "skulls":
+                geometries = [skullGeometry];
+                break;
+            case "ropes":
+                geometries = [tubeGeometry];
+                break;
+        }
 
+        this.softbodies = [];
         for (let i=0; i<this.softbodyCount; i++) {
             //const geometries = [sphereGeometry];
-            const geometries = [virusGeometry, skullGeometry, sphereGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
-            const softbody = this.physics.addInstance(geometries[i%geometries.length]); //i % 4 === 0 ? skullGeometry : virusGeometry);
+            const softbody = this.physics.addInstance(geometries[i % geometries.length]); //i % 4 === 0 ? skullGeometry : virusGeometry);
             this.softbodies.push(softbody);
+            await progressCallback(0.51 + (0.3 * i / this.softbodyCount));
         }
 
         this.collisionGeometry = new CollisionGeometry(this.physics);
@@ -193,15 +233,18 @@ class App {
         this.scene.add(this.collisionGeometry.object);
 
         await this.physics.bake();
+        await progressCallback(0.9);
 
         this.tetVisualizer = new TetVisualizer(this.physics);
         this.tetVisualizer.object.visible = false;
         this.scene.add(this.tetVisualizer.object);
+    }
 
-        this.raycaster = new THREE.Raycaster();
-        this.renderer.domElement.addEventListener("pointerdown", (event) => { this.onPointerDown(event); });
-
-        await progressCallback(1.0, 100);
+    clear() {
+        this.lights.dispose();
+        this.physics.dispose();
+        this.tetVisualizer.dispose();
+        this.collisionGeometry.dispose();
     }
 
     async onPointerDown(event) {
@@ -220,7 +263,14 @@ class App {
     async update(delta, elapsed) {
         conf.begin();
 
-        const { wireframe, bodies } = conf;
+        const { wireframe, bodies, scene } = conf;
+
+        if (this.sceneName !== scene) {
+            this.clear();
+            this.sceneName = scene;
+            await this.setupScene(() => {});
+        }
+
         if (wireframe !== this.wireframe) {
             this.wireframe = wireframe;
             this.physics.object.visible = !wireframe;

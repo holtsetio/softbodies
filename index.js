@@ -2,12 +2,16 @@ import * as THREE from "three/webgpu"
 import App from "./src/app";
 THREE.ColorManagement.enabled = true
 
-const updateLoadingProgressBar = async (frac, delay=200) => {
+const updateLoadingProgressBar = async (frac, delay=0) => {
     return new Promise(resolve => {
         const progress = document.getElementById("progress")
         // 200px is the width of the progress bar defined in index.html
         progress.style.width = `${frac * 200}px`
-        setTimeout(resolve, delay)
+        if (delay === 0) {
+            resolve();
+        } else {
+            setTimeout(resolve, delay)
+        }
     })
 }
 

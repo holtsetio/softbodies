@@ -243,7 +243,7 @@ export class FEMPhysics {
         this.uniforms.gravity = uniform(new THREE.Vector3(0,-9.81*2,0), "vec3");
         //this.uniforms.scales = uniformArray(new Array(this.objectData.length).fill(0), "float");
         this.uniforms.rotationRefinementSteps = uniform(2, "int");
-        conf.settings.addBinding(this.uniforms.rotationRefinementSteps, "value", { min: 1, max: 9, step: 1 });
+        //conf.settings.addBinding(this.uniforms.rotationRefinementSteps, "value", { min: 1, max: 9, step: 1 });
 
 
         // ################
@@ -257,9 +257,9 @@ export class FEMPhysics {
             });*/
             this.hashBuffer.element(instanceIndex).assign(-1);
         })().compute(hashMapSize);
-        console.time("clearHashMap");
+        //console.time("clearHashMap");
         await this.renderer.computeAsync(this.kernels.clearHashMap); //call once to compile
-        console.timeEnd("clearHashMap");
+        //console.timeEnd("clearHashMap");
 
 
         this.kernels.solveElemPass = Fn(() => {
@@ -346,9 +346,9 @@ export class FEMPhysics {
             tetBuffer.get(instanceIndex, "nextTet").assign(atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex));
 
         })().compute(this.tetCount);
-        console.time("solveElemPass");
+        //console.time("solveElemPass");
         await this.renderer.computeAsync(this.kernels.solveElemPass); //call once to compile
-        console.timeEnd("solveElemPass");
+        //console.timeEnd("solveElemPass");
 
 
         this.kernels.solveCollisions = Fn(() => {
@@ -412,9 +412,9 @@ export class FEMPhysics {
                 restPosesBuffer.get(instanceIndex.mul(4).add(3), "position").addAssign(diff);
             });
         })().compute(this.tetCount);
-        console.time("solveCollisions");
+        //console.time("solveCollisions");
         await this.renderer.computeAsync(this.kernels.solveCollisions); //call once to compile
-        console.timeEnd("solveCollisions");
+        //console.timeEnd("solveCollisions");
 
 
         this.kernels.applyElemPass = Fn(()=>{
@@ -462,9 +462,9 @@ export class FEMPhysics {
 
             vertexBuffer.get(instanceIndex, "position").assign(position);
         })().compute(this.vertexCount);
-        console.time("applyElemPass");
+        //console.time("applyElemPass");
         await this.renderer.computeAsync(this.kernels.applyElemPass); //call once to compile
-        console.timeEnd("applyElemPass");
+        //console.timeEnd("applyElemPass");
 
 
         // ######################
@@ -473,9 +473,9 @@ export class FEMPhysics {
 
         this.uniforms.resetVertexStart = uniform(0, "uint");
         this.uniforms.resetVertexCount = uniform(0, "uint");
-        this.uniforms.resetOffset = uniform(new THREE.Vector3());
         this.uniforms.resetVelocity = uniform(new THREE.Vector3());
-        this.uniforms.resetScale = uniform(1.0, "float");
+        this.uniforms.resetMatrix = uniform(new THREE.Matrix4());
+        this.uniforms.resetQuat = uniform(new THREE.Vector4());
         this.kernels.resetVertices = Fn(()=>{
             If(instanceIndex.greaterThanEqual(this.uniforms.resetVertexCount), () => {
                 Return();
@@ -488,13 +488,13 @@ export class FEMPhysics {
             });
 
 
-            const initialPosition = vertexBuffer.get(vertexId, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const initialPosition = this.uniforms.resetMatrix.mul(vec4(vertexBuffer.get(vertexId, "initialPosition").xyz, 1)).xyz.toVar();
             vertexBuffer.get(vertexId, "position").assign(initialPosition);
             vertexBuffer.get(vertexId, "prevPosition").assign(initialPosition.sub(this.uniforms.resetVelocity));
         })().compute(this.vertexCount);
-        console.time("resetVertices");
+        //console.time("resetVertices");
         await this.renderer.computeAsync(this.kernels.resetVertices); //call once to compile
-        console.timeEnd("resetVertices");
+        //console.timeEnd("resetVertices");
 
 
         this.uniforms.resetTetStart = uniform(0, "uint");
@@ -508,20 +508,20 @@ export class FEMPhysics {
 
             // Gather this tetrahedron's 4 vertex positions
             const vertexIds = tetBuffer.get(tetId, "vertexIds");
-            const pos0 = vertexBuffer.get(vertexIds.x, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
-            const pos1 = vertexBuffer.get(vertexIds.y, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
-            const pos2 = vertexBuffer.get(vertexIds.z, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
-            const pos3 = vertexBuffer.get(vertexIds.w, "initialPosition").mul(this.uniforms.resetScale).add(this.uniforms.resetOffset).toVar();
+            const pos0 = this.uniforms.resetMatrix.mul(vec4(vertexBuffer.get(vertexIds.x, "initialPosition").xyz, 1)).xyz.toVar();
+            const pos1 = this.uniforms.resetMatrix.mul(vec4(vertexBuffer.get(vertexIds.y, "initialPosition").xyz, 1)).xyz.toVar();
+            const pos2 = this.uniforms.resetMatrix.mul(vec4(vertexBuffer.get(vertexIds.z, "initialPosition").xyz, 1)).xyz.toVar();
+            const pos3 = this.uniforms.resetMatrix.mul(vec4(vertexBuffer.get(vertexIds.w, "initialPosition").xyz, 1)).xyz.toVar();
 
             restPosesBuffer.get(tetId.mul(4), "position").assign(pos0);
             restPosesBuffer.get(tetId.mul(4).add(1), "position").assign(pos1);
             restPosesBuffer.get(tetId.mul(4).add(2), "position").assign(pos2);
             restPosesBuffer.get(tetId.mul(4).add(3), "position").assign(pos3);
-            tetBuffer.get(tetId, "quat").assign(vec4(0,0,0,1));
+            tetBuffer.get(tetId, "quat").assign(this.uniforms.resetQuat);
         })().compute(this.tetCount);
-        console.time("resetTets");
+        //console.time("resetTets");
         await this.renderer.computeAsync(this.kernels.resetTets); //call once to compile
-        console.timeEnd("resetTets");
+        //console.timeEnd("resetTets");
 
         this.uniforms.objectStart = uniform(0, "uint");
         this.kernels.resetObjects = Fn(() => {
@@ -555,9 +555,9 @@ export class FEMPhysics {
             const force = dist.mul(0.3).oneMinus().max(0.0).pow(0.5);
             prevPosition.addAssign(vec3(0,-0.25,0).mul(force));
         })().compute(this.vertexCount);
-        console.time("applyMouseEvent");
+        //console.time("applyMouseEvent");
         await this.renderer.computeAsync(this.kernels.applyMouseEvent); //call once to compile
-        console.timeEnd("applyMouseEvent");
+        //console.timeEnd("applyMouseEvent");
 
 
         // #############################
@@ -594,15 +594,18 @@ export class FEMPhysics {
         });
     }
 
-    async resetObject(id, position, scale, velocity = new THREE.Vector3()) {
+    async resetObject(id, position, quaternion, scale, velocity = new THREE.Vector3()) {
         this.objectData[id].position.copy(position);
+
+        this.uniforms.resetMatrix.value.compose(position, quaternion, scale);
+        this.uniforms.resetQuat.value.copy(quaternion);
         this.uniforms.resetVertexStart.value = this.objectData[id].vertexStart;
         this.uniforms.resetVertexCount.value = this.objectData[id].vertexCount;
         this.uniforms.resetTetStart.value = this.objectData[id].tetStart;
         this.uniforms.resetTetCount.value = this.objectData[id].tetCount;
-        this.uniforms.resetOffset.value.copy(position);
+        //this.uniforms.resetOffset.value.copy(position);
         this.uniforms.resetVelocity.value.copy(velocity);
-        this.uniforms.resetScale.value = scale;
+        //this.uniforms.resetScale.value = scale;
         this.kernels.resetVertices.count = this.objectData[id].vertexCount;
         this.kernels.resetTets.count = this.objectData[id].tetCount;
         this.kernels.resetVertices.updateDispatchCount();
@@ -682,5 +685,12 @@ export class FEMPhysics {
             //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.initialTetPositionBuffer.value));
             //console.log(hashMap);
         }
+    }
+
+    dispose() {
+        Object.keys(this.kernels).forEach(key => {
+            this.kernels[key].dispose();
+        })
+        this.geometries.forEach(geom => geom.dispose);
     }
 }
