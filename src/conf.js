@@ -8,6 +8,10 @@ class Conf {
 
     stepsPerSecond = 120;
 
+    bodies = 100;
+
+    maxBodies = 300;
+
     constructor() {
 
     }
@@ -30,6 +34,7 @@ class Conf {
             title: "settings",
             expanded: false,
         });
+        settings.addBinding(this, "bodies", { min: 20, max: this.maxBodies, step: 10 });
         settings.addBinding(this, "stepsPerSecond", { min: 120, max: 300, step: 60 });
         settings.addBinding(this, "wireframe");
 

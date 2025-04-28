@@ -24,6 +24,7 @@ const TYPES = {
 
 export class StructuredArray {
     structNode = null;
+    buffer = null;
     layout = null;
     structSize = 0;
 
@@ -105,5 +106,4 @@ export class StructuredArray {
         this.structSize = offset;
         return parsedLayout;
     }
-
 };

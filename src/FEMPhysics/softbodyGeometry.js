@@ -75,6 +75,7 @@ export class SoftbodyGeometry {
         geometry.setAttribute("instanceData", instanceDataBuffer);
         geometry.setIndex(indices);
         geometry.instanceCount = instanceCount;
+        this.geometry = geometry;
 
         const object = new THREE.Mesh(geometry, this.material);
         object.frustumCulled = false;
@@ -82,6 +83,12 @@ export class SoftbodyGeometry {
         object.receiveShadow = true;
 
         this.physics.object.add(object);
+    }
+
+    updateCount() {
+        const totalCount = this.physics.objectCount;
+        const count = this.instances.filter(i => i.id < totalCount && i.spawned).length;
+        this.geometry.instanceCount = count;
     }
 
     addInstance() {

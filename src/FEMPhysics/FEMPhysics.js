@@ -56,6 +56,8 @@ export class FEMPhysics {
 
     colliders = [];
 
+    objectCount = 0;
+
     constructor(renderer) {
         this.renderer = renderer;
         this.object = new THREE.Object3D();
@@ -180,7 +182,7 @@ export class FEMPhysics {
             tetBuffer.set(index, "restVolume", V);
             tetBuffer.set(index, "quat", [0,0,0,1]);
             tetBuffer.set(index, "objectId", tet.objectId);
-            tetBuffer.set(index, "radius", radius * 0.9);
+            tetBuffer.set(index, "radius", radius);
         });
         console.log("maxRadius", maxRadius);
 
@@ -521,6 +523,12 @@ export class FEMPhysics {
         await this.renderer.computeAsync(this.kernels.resetTets); //call once to compile
         console.timeEnd("resetTets");
 
+        this.uniforms.objectStart = uniform(0, "uint");
+        this.kernels.resetObjects = Fn(() => {
+            const objectId = this.uniforms.objectStart.add(instanceIndex).toVar();
+            objectBuffer.get(objectId, "size").assign(0.0);
+        })().compute(this.objects.length);
+
 
         // ##################################
         //  CREATE MOUSE INTERACTION KERNELS
@@ -610,13 +618,43 @@ export class FEMPhysics {
     }
 
     async update(interval, elapsed) {
+        const { stepsPerSecond, bodies } = conf;
         this.frameNum++;
+
+        if (bodies !== this.objectCount) {
+            this.objectCount = bodies;
+            for (let i=this.objectCount; i<this.objects.length; i++) {
+                this.objects[i].spawned = false;
+            }
+
+            this.geometries.forEach(geom => geom.updateCount());
+
+            const lastObject = this.objectData[this.objectCount - 1];
+            const tetCount = lastObject.tetStart + lastObject.tetCount;
+            const vertexCount = lastObject.vertexStart + lastObject.vertexCount;
+
+            this.uniforms.tetCount.value = tetCount;
+            this.uniforms.vertexCount.value = vertexCount;
+
+            this.kernels.solveElemPass.count = tetCount;
+            this.kernels.solveCollisions.count = tetCount;
+            this.kernels.applyElemPass.count = vertexCount;
+            this.kernels.applyMouseEvent.count = vertexCount;
+
+            this.kernels.solveElemPass.updateDispatchCount();
+            this.kernels.solveCollisions.updateDispatchCount();
+            this.kernels.applyElemPass.updateDispatchCount();
+            this.kernels.applyMouseEvent.updateDispatchCount();
+
+            this.uniforms.objectStart.value = this.objectCount;
+            await this.renderer.computeAsync(this.kernels.resetObjects);
+        }
 
         if (this.frameNum % 50 === 0) {
             //this.readPositions().then(() => {}); // no await to prevent blocking!
         }
 
-        const { stepsPerSecond } = conf;
+
         const timePerStep = 1 / stepsPerSecond;
 
         interval = Math.max(Math.min(interval, 1/60), 0.0001);
@@ -626,7 +664,6 @@ export class FEMPhysics {
 
         for (let i=0; i<this.objects.length; i++) {
             const object = this.objects[i];
-            //this.uniforms.scales.array[i] = THREE.MathUtils.smoothstep(Math.min(object.age * 3, 1.0), 0, 1);
             await object.update(interval, elapsed);
         }
 

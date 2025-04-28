@@ -78,7 +78,7 @@ class App {
 
     softbodies = [];
 
-    softbodyCount = 100;
+    softbodyCount = conf.maxBodies;
 
     lastSoftbody = 0;
 
@@ -91,7 +91,6 @@ class App {
     async init(progressCallback) {
         conf.init();
         this.info = new Info();
-        this.time = 0;
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 120);
         this.camera.position.set(30,10, 27);
         this.camera.lookAt(0,0,0);
@@ -108,14 +107,9 @@ class App {
         await progressCallback(0.1)
 
         const hdriTexture = await loadHdr(hdri);
-        //this.scene.environment = hdriTexture;d
         this.scene.backgroundNode = pmremTexture(hdriTexture, normalWorld);
-        this.scene.environmentNode = pmremTexture(hdriTexture, normalWorld).mul(0.5); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
-        //this.scene.fogNode = Fn(() => { return fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(30,50)); })() ; //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
-        //this.scene.backgroundBlurriness = 0.1;
-        //this.scene.backgroundRotation.set(0, Math.PI, 0);
-        //this.scene.environmentRotation.set(0, Math.PI, 0);
-        //this.scene.backgroundNode = Fn(() => { return vec3(0); })();
+        this.scene.environmentNode = pmremTexture(hdriTexture, normalWorld).mul(0.5);
+
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 0.5;
         this.renderer.shadowMap.enabled = true;
@@ -189,32 +183,20 @@ class App {
 
         for (let i=0; i<this.softbodyCount; i++) {
             //const geometries = [sphereGeometry];
-            const geometries = [virusGeometry, skullGeometry, sphereGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
+            const geometries = [virusGeometry, skullGeometry, sphereGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry, tubeGeometry];
             const softbody = this.physics.addInstance(geometries[i%geometries.length]); //i % 4 === 0 ? skullGeometry : virusGeometry);
             this.softbodies.push(softbody);
         }
-        /*for (let i=0; i<this.softbodyCount; i++) {
-            const softbody = this.physics.addInstance(i % 20 === 19 ? virusGeometry : skullGeometry);
-            this.scene.add(softbody.object);
-            this.softbodies.push(softbody);
-        }*/
 
         this.collisionGeometry = new CollisionGeometry(this.physics);
         await this.collisionGeometry.createGeometry();
         this.scene.add(this.collisionGeometry.object);
-
-        //this.collisionGeometry.floor.material.fogNode = fog(pmremTexture(hdriTexture, normalWorld), rangeFogFactor(10,50)); //.mul(normalWorld.y.add(1.0).min(1.0).mul(0.8).add(0.2));
 
         await this.physics.bake();
 
         this.tetVisualizer = new TetVisualizer(this.physics);
         this.tetVisualizer.object.visible = false;
         this.scene.add(this.tetVisualizer.object);
-
-        /*this.stats = new Stats();
-        this.stats.showPanel(0); // Panel 0 = fps
-        this.stats.domElement.style.cssText = "position:absolute;top:0px;left:0px;";
-        this.renderer.domElement.parentElement.appendChild(this.stats.domElement);*/
 
         this.raycaster = new THREE.Raycaster();
         this.renderer.domElement.addEventListener("pointerdown", (event) => { this.onPointerDown(event); });
@@ -238,37 +220,23 @@ class App {
     async update(delta, elapsed) {
         conf.begin();
 
-        const { wireframe } = conf;
+        const { wireframe, bodies } = conf;
         if (wireframe !== this.wireframe) {
             this.wireframe = wireframe;
-            //this.softbodies.forEach(sb => { sb.object.visible = sb.spawned && !wireframe; })
             this.physics.object.visible = !wireframe;
             this.tetVisualizer.object.visible = wireframe;
         }
 
-
-        //console.log(this.camera.position);
-        //conf.update();
         this.controls.update(delta);
-
-        /*const camZ = this.camera.position.z;
-        const minY = -camZ * (3/5);
-        const angle = Math.atan2(this.camera.position.length(), minY);
-        this.controls.maxPolarAngle = angle - 0.2;*/
-
-        //this.stats.update();
-        this.time += 0.01666;
 
         this.lastSoftbody += delta;
         if (this.lastSoftbody > 0.15) {
-            const nextSoftbody = this.softbodies.find(sb => sb.outOfSight);
+            const nextSoftbody = this.softbodies.find((sb, index) => (index < bodies && sb.outOfSight));
             if (nextSoftbody) {
                 this.lastSoftbody = Math.random() * -0.0;
                 await nextSoftbody.reset();
-                //nextSoftbody.object.visible = !this.wireframe;
             }
         }
-        //this.cloth.update();
         this.lights.update(elapsed);
         await this.physics.update(delta, elapsed);
 

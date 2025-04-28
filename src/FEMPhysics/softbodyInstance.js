@@ -56,6 +56,7 @@ export class SoftbodyInstance {
         //this.object.visible = true;
         this.spawned = true;
         this.outOfSight = false;
+        this.geometry.updateCount();
     }
 
     async update(interval) {

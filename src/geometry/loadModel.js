@@ -167,6 +167,7 @@ export const loadModelWithGeo = (msh, geo) => {
 
 export const generateTube = () => {
     const radius = 0.25*0.5;
+    const capsuleRadius = Math.sqrt(4/Math.PI) * radius;
     const length = 2.5*10*0.5*0.5*1;
     const segments = 5*10*0.5*1;
     const tetVertsRaw = [];
@@ -175,14 +176,14 @@ export const generateTube = () => {
     const rr = radius;
     for (let x=0; x<=segments; x++) {
         const px = x * (length/segments) - length * 0.5;
-        tetVertsRaw.push( rr, -px, -rr);
-        tetVertsRaw.push( rr, -px, rr);
-        tetVertsRaw.push( -rr, -px, rr);
-        tetVertsRaw.push( -rr, -px, -rr);
+        tetVertsRaw.push(rr, -px, -rr);
+        tetVertsRaw.push(rr, -px, rr);
+        tetVertsRaw.push(-rr, -px, rr);
+        tetVertsRaw.push(-rr, -px, -rr);
     }
-    tetVertsRaw.push( 0, (length*0.5 + radius), 0);
+    tetVertsRaw.push( 0, (length*0.5 + capsuleRadius), 0);
     const bottomVert = tetVertsRaw.length / 3;
-    tetVertsRaw.push( 0, -(length*0.5 + radius), 0);
+    tetVertsRaw.push( 0, -(length*0.5 + capsuleRadius), 0);
     const topVert = tetVertsRaw.length / 3;
 
     for (let x=0; x<segments; x++) {
@@ -200,7 +201,7 @@ export const generateTube = () => {
     tetIdsRaw.push(topVert, segments*4+1,segments*4+3,segments*4+4);
 
     //const geometry = new THREE.CylinderGeometry( radius, radius, length, 8, segments );
-    const geometry = new THREE.CapsuleGeometry(radius, length, 4, 8, segments );
+    const geometry = new THREE.CapsuleGeometry(capsuleRadius, length, 4, 8, segments );
     //geometry.rotateZ(Math.PI/2);
     const { tetVerts, tetIds, vertices, tets } = processTetGeometry(tetVertsRaw, tetIdsRaw);
     const { attachedTets, baryCoords, normals, uvs, positions, indices} = processGeometry(geometry, tets);
