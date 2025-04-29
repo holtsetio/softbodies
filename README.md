@@ -1,6 +1,6 @@
 # Realtime softbody simulation in the Browser with WebGPU
 
-This is a realtime simulation of softbodies with collisions running in the browser using the three.js WebGPURenderer.
+This is a realtime simulation of softbodies with collisions, running in the browser using the three.js WebGPURenderer.
 
 See it running live [here](https://holtsetio.com/lab/softbodies/)!
 
