@@ -15,7 +15,8 @@ import {
     pmremTexture,
     smoothstep, texture, uv, normalMap,
     varying, vec2,
-    vec3
+    vec3, instanceIndex,
+    mx_hsvtorgb
 } from "three/tsl";
 import {FEMPhysics} from "./FEMPhysics/FEMPhysics";
 import {TetVisualizer} from "./FEMPhysics/tetVisualizer";
@@ -78,6 +79,8 @@ class App {
 
     wireframe = false;
 
+    lastPositions = [];
+
     textures = {
         ropeNormal: normalMapFileRope,
         ropeColor: colorMapFileRope,
@@ -128,7 +131,7 @@ class App {
         this.wireframe = false;
 
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 120);
-        this.camera.position.set(30,10, 27);
+        this.camera.position.set(40,0,24);
         this.camera.lookAt(0,0,0);
         this.camera.updateProjectionMatrix()
 
@@ -191,16 +194,23 @@ class App {
             virusGeometry.material.color = 0xFFAAFF;
             virusGeometry.material.normalScale = new THREE.Vector2(3,3);
 
-            virusGeometry.material.colorNode = Fn(() => {
-                return vec3(0.5,0,0.5).mul(0.5);
-            })();
+            let color, colorHighlight;
+
+            if (this.sceneName === "viruses") {
+                color = mx_hsvtorgb(vec3(float(instanceIndex).mul(0.07), 0.99, 0.25 ));
+                colorHighlight = mx_hsvtorgb(vec3(float(instanceIndex).mul(0.07).add(0.1), 0.99, 0.9 ));
+            } else {
+                color = vec3(0.25,0,0.25);
+                colorHighlight = vec3(1,0,0.5);
+            }
+
+            virusGeometry.material.colorNode = color;
 
             const vDistance = varying(float(0), "v_distance");
             virusGeometry.material.emissiveNode = Fn(() => {
                 const dp = dot(vec3(0,0,1), normalView).max(0).pow(4);
-                const color = vec3(1,0,0.5);
                 const of = mix(0.0, 1.0, smoothstep(1.3,1.6, vDistance));
-                return dp.mul(of).mul(color);
+                return dp.mul(of).mul(colorHighlight);
             })();
         }
         {
@@ -220,6 +230,9 @@ class App {
                 break;
             case "skulls":
                 geometries = [skullGeometry];
+                break;
+            case "viruses":
+                geometries = [virusGeometry];
                 break;
             case "ropes":
                 geometries = [ropeGeometry];
@@ -269,6 +282,35 @@ class App {
         this.camera.updateProjectionMatrix();
     }
 
+    getRandomPositionOnSphere() {
+        const radius = 50;
+        const phi = Math.random() * Math.PI * 2;
+        const theta = Math.random() * Math.PI;
+        const x = radius * Math.sin(theta) * Math.cos(phi);
+        const y = radius * Math.cos(theta);
+        const z = radius * Math.sin(theta) * Math.sin(phi);
+        return new THREE.Vector3(x,y,z);
+    }
+
+    getRandomPosition() {
+        let found = false;
+        let position = new THREE.Vector3(0,0,0);
+        while (!found) {
+            position = this.getRandomPositionOnSphere();
+            const nearby = this.lastPositions.find(p => {
+                return p.distanceTo(position) < 8;
+            })
+            if (!nearby) {
+                found = true;
+                this.lastPositions.push(position);
+                if (this.lastPositions.length > 20) {
+                    this.lastPositions.shift();
+                }
+            }
+        }
+        return position;
+    }
+
     async update(delta, elapsed) {
         conf.begin();
 
@@ -293,7 +335,8 @@ class App {
             const nextSoftbody = this.softbodies.find((sb, index) => (index < bodies && sb.outOfSight));
             if (nextSoftbody) {
                 this.lastSoftbody = Math.random() * -0.0;
-                await nextSoftbody.reset();
+                const position = this.getRandomPosition();
+                await nextSoftbody.reset(position);
             }
         }
         this.lights.update(elapsed);

@@ -39,17 +39,10 @@ export class SoftbodyInstance {
         }
     }
 
-    async reset() {
-        const scale = new THREE.Vector3(1,1,1); //2.0 + Math.random() * 1;
-        const radius = 50;
-        const phi = Math.random() * Math.PI * 2;
-        const theta = Math.random() * Math.PI;
-        const x = radius * Math.sin(theta) * Math.cos(phi);
-        const y = radius * Math.cos(theta);
-        const z = radius * Math.sin(theta) * Math.sin(phi);
-
-        const quaternion = new THREE.Quaternion().random().invert();
-        const position = new THREE.Vector3(x,y,z);
+    async reset(position) {
+        const scale = new THREE.Vector3(1,1,1);
+        const quaternion = new THREE.Quaternion().random();
+        //if (!this.geometry.material.iridescence) { quaternion.random(); }
 
         //const velocity = new THREE.Vector3(0,-0.005,0.03);
         const velocity = new THREE.Vector3(0,0, 0);

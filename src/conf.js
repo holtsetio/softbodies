@@ -44,6 +44,7 @@ class Conf {
             mixed: { min: 10, max: 300, default: 100, text: "mixed" },
             spheres: { min: 10, max: 200, default: 50, text: "only spheres" },
             skulls: { min: 10, max: 200, default: 50, text: "only skulls" },
+            viruses: { min: 10, max: 100, default: 30, text: "only viruses" },
             ropes: { min: 30, max: 500, default: 100, text: "only ropes" },
             longropes: { min: 3, max: 100, default: 10, text: "looooong ropes" },
         };
