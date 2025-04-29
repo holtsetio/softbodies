@@ -27,6 +27,7 @@ export class Info {
                 "[HDRi background](https://polyhaven.com/a/autumn_field_puresky) by Jarod Guest and Sergej Majboroda on [Polyhaven.com](https://polyhaven.com). " +
                 "[Rope texture](https://www.texturecan.com/details/424/) by [texturecan.com](https://texturecan.com).\n\n" +
 
+                "View the source code [here](https://github.com/holtsetio/softbodies/)!\n\n" +
                 "[> Other experiments](https://holtsetio.com)",
             markdown: true,
         })
