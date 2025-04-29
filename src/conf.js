@@ -1,14 +1,17 @@
 import {Pane} from 'tweakpane';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
+import mobile from "is-mobile";
+
+const isMobile = mobile();
 
 class Conf {
     gui = null;
 
     wireframe = false;
 
-    stepsPerSecond = 120;
+    stepsPerSecond = 180;
 
-    bodies = 100;
+    bodies = (isMobile ? 30 : 100);
 
     maxBodies = 300;
 
@@ -37,24 +40,30 @@ class Conf {
             expanded: false,
         });
 
+        const scenes = {
+            mixed: { min: 10, max: 300, default: 100, text: "mixed" },
+            spheres: { min: 10, max: 200, default: 50, text: "only spheres" },
+            skulls: { min: 10, max: 200, default: 50, text: "only skulls" },
+            ropes: { min: 30, max: 500, default: 100, text: "only ropes" },
+            longropes: { min: 3, max: 100, default: 10, text: "looooong ropes" },
+        };
+
         settings.addBlade({
             view: 'list',
             label: 'scene',
-            options: [
-                //'lol'
-                {text: 'mixed', value: 'mixed', max: 123},
-                {text: 'only Spheres', value: 'spheres'},
-                {text: 'only Skulls', value: 'skulls'},
-                {text: 'only Ropes', value: 'ropes'},
-                {text: 'looooong Ropes', value: 'longropes'},
-            ],
+            options: Object.keys(scenes).map(key => ({ ...scenes[key], value: key })),
             value: 'mixed',
         }).on('change', (ev) => {
-            //console.log(ev);
+            const params = scenes[ev.value];
+            this.bodies = Math.round(params.default * (isMobile ? 0.3 : 1.0));
+            this.maxBodies = params.max;
+            this.bodiesBinding.min = params.min;
+            this.bodiesBinding.max = params.max;
             this.scene = ev.value;
+            gui.refresh();
         });
 
-        settings.addBinding(this, "bodies", { min: 20, max: this.maxBodies, step: 10 });
+        this.bodiesBinding = settings.addBinding(this, "bodies", { min: 20, max: this.maxBodies, step: 10 });
         settings.addBinding(this, "stepsPerSecond", { min: 120, max: 300, step: 60 });
         //settings.addBinding(this, "wireframe");
 
