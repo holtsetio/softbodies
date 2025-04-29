@@ -26,6 +26,7 @@ import {SoftbodyGeometry} from "./softbodyGeometry.js";
 import {conf} from "../conf";
 import {StructuredArray} from "./structuredArray.js";
 import { murmurHash13, rotateByQuat, quat_conj, quat_mult, extractRotation } from "./math.js";
+import {Grid} from "./grid.js";
 
 export class FEMPhysics {
     vertices = [];
@@ -228,9 +229,9 @@ export class FEMPhysics {
 
         this.influencerBuffer = instancedArray(influencerArray, 'uint');
 
-        const hashMapSize = 1048573; //
-        const hashingCellSize = maxRadius * 2; //0.36
-        this.hashBuffer = instancedArray(hashMapSize, "int").toAtomic();
+        const gridCellSize = maxRadius * 2; //0.36
+        this.grid = new Grid(gridCellSize, "basic");
+
 
         // #################
         //  CREATE UNIFORMS
@@ -250,20 +251,13 @@ export class FEMPhysics {
         //  CREATE KERNELS
         // ################
 
-        this.kernels.clearHashMap = Fn(() => {
-            this.hashBuffer.setAtomic(false);
-            /*If(instanceIndex.greaterThanEqual(uint(hashMapSize)), () => {
-                Return();
-            });*/
-            this.hashBuffer.element(instanceIndex).assign(-1);
-        })().compute(hashMapSize);
         //console.time("clearHashMap");
-        await this.renderer.computeAsync(this.kernels.clearHashMap); //call once to compile
+        await this.grid.clearBuffer(this.renderer) //call once to compile
         //console.timeEnd("clearHashMap");
 
 
         this.kernels.solveElemPass = Fn(() => {
-            this.hashBuffer.setAtomic(true);
+            this.grid.setAtomic(true);
             If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
                 Return();
             });
@@ -339,11 +333,8 @@ export class FEMPhysics {
             restPosesBuffer.get(instanceIndex.mul(4).add(2), "position").assign(ref2);
             restPosesBuffer.get(instanceIndex.mul(4).add(3), "position").assign(ref3);
 
-            const ipos = ivec3(curCentroid.div(hashingCellSize).floor());
-            const hash = murmurHash13(ipos).mod(uint(hashMapSize)).toVar("hash");
-            //const storeNode = this.tetPtrBuffer.element(instanceIndex);
-            //const prev = atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex, 0));
-            tetBuffer.get(instanceIndex, "nextTet").assign(atomicFunc("atomicExchange", this.hashBuffer.element(hash), instanceIndex));
+            const gridElement = this.grid.getElement(curCentroid);
+            tetBuffer.get(instanceIndex, "nextTet").assign(atomicFunc("atomicExchange", gridElement, instanceIndex));
 
         })().compute(this.tetCount);
         //console.time("solveElemPass");
@@ -352,7 +343,7 @@ export class FEMPhysics {
 
 
         this.kernels.solveCollisions = Fn(() => {
-            this.hashBuffer.setAtomic(false);
+            this.grid.setAtomic(false);
             If(instanceIndex.greaterThanEqual(this.uniforms.tetCount), () => {
                 Return();
             });
@@ -367,7 +358,7 @@ export class FEMPhysics {
             const radius = tetBuffer.get(instanceIndex, "radius").toVar();
             const initialPosition = tetBuffer.get(instanceIndex, "initialPosition").toVar();
 
-            const cellIndex =  ivec3(position.div(hashingCellSize).floor()).sub(1).toConst("cellIndex");
+            const cellIndex =  ivec3(position.div(this.grid.cellsize).floor()).sub(1).toConst("cellIndex");
             const diff = vec3(0).toVar();
             const totalForce = float(0).toVar();
 
@@ -376,8 +367,7 @@ export class FEMPhysics {
                 Loop({ start: 0, end: 3, type: 'int', name: 'gy', condition: '<' }, ({gy}) => {
                     Loop({ start: 0, end: 3, type: 'int', name: 'gz', condition: '<' }, ({gz}) => {
                         const cellX = cellIndex.add(ivec3(gx,gy,gz)).toConst();
-                        const hash = murmurHash13(cellX).mod(uint(hashMapSize));
-                        const tetPtr = this.hashBuffer.element(hash).toVar('tetPtr');
+                        const tetPtr = this.grid.getElementFromIndex(cellX).toVar('tetPtr');
                         Loop(tetPtr.notEqual(int(-1)), () => {
                             const checkCollision = uint(1).toVar();
                             const objectId2 = tetBuffer.get(tetPtr, "objectId");
@@ -418,7 +408,6 @@ export class FEMPhysics {
 
 
         this.kernels.applyElemPass = Fn(()=>{
-            this.hashBuffer.setAtomic(false);
             If(instanceIndex.greaterThanEqual(this.uniforms.vertexCount), () => {
                 Return();
             });
@@ -674,17 +663,18 @@ export class FEMPhysics {
             this.time += timePerStep;
             this.timeSinceLastStep -= timePerStep;
             this.uniforms.time.value = this.time;
-            await this.renderer.computeAsync(this.kernels.clearHashMap);
+            await this.grid.clearBuffer(this.renderer);
             await this.renderer.computeAsync(this.kernels.solveElemPass);
             await this.renderer.computeAsync(this.kernels.solveCollisions);
             await this.renderer.computeAsync(this.kernels.applyElemPass);
         }
 
 
-        if (this.frameNum > 1) {
-            //const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.initialTetPositionBuffer.value));
-            //console.log(hashMap);
-        }
+        /*if (this.frameNum > 1) {
+            const hashMap = new Int32Array(await this.renderer.getArrayBufferAsync(this.grid.buffer.value));
+            const res = hashMap.filter(i => i >= 0);
+            console.log((res.length / hashMap.length) * 100 + "% filled");
+        }*/
     }
 
     dispose() {
