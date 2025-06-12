@@ -435,8 +435,8 @@ export class FEMPhysics {
             vertexBuffer.get(instanceIndex, "prevPosition").assign(position);
 
             const { dt, gravity } = this.uniforms;
-            const gravity2 = position.normalize().mul(-9.81).mul(1);
-            const velocity = position.sub(prevPosition).div(dt).add(gravity2.mul(dt)).mul(0.999);
+            //const gravity2 = position.normalize().mul(-9.81).mul(1);
+            const velocity = position.sub(prevPosition).div(dt).add(gravity.mul(dt)).mul(0.999);
             position.addAssign(velocity.mul(dt));
 
             const F = prevPosition.sub(position);
@@ -447,7 +447,7 @@ export class FEMPhysics {
                 position.addAssign(diff.mul(colliderResult.xyz));
                 frictionDir.addAssign(colliderResult.xyz.abs().oneMinus().mul(diff.sign()));
             });
-            position.xyz.addAssign(F.mul(frictionDir).mul(min(1.0, dt.mul(100))));
+            //position.xyz.addAssign(F.mul(frictionDir).mul(min(1.0, dt.mul(5000))));
 
             vertexBuffer.get(instanceIndex, "position").assign(position);
         })().compute(this.vertexCount);
@@ -643,7 +643,7 @@ export class FEMPhysics {
         }
 
         if (this.frameNum % 50 === 0) {
-            //this.readPositions().then(() => {}); // no await to prevent blocking!
+            this.readPositions().then(() => {}); // no await to prevent blocking!
         }
 
 

@@ -3,9 +3,9 @@ import * as THREE from "three/webgpu";
 export class Lights {
     constructor() {
         this.object = new THREE.Object3D();
-        const light = new THREE.SpotLight(0xffffff, 5, 0, Math.PI * 0.075, 1, 0);
+        const light = new THREE.SpotLight(0xffffff, 0.5, 0, Math.PI * 0.2, 1, 0);
         const lightTarget = new THREE.Object3D();
-        light.position.set(100, 70, 74);
+        light.position.set(0, 70, 0);
         lightTarget.position.set(0,0,0);
         light.target = lightTarget;
 

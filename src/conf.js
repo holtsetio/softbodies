@@ -11,11 +11,15 @@ class Conf {
 
     stepsPerSecond = 180;
 
-    bodies = (isMobile ? 30 : 100);
+    bodies = (isMobile ? 30 : 30);
 
-    maxBodies = 300;
+    maxBodies = 50;
 
-    scene = 'mixed';
+    scene = 'spheres';
+
+    roughness = 0.1;
+    transmission = 0.9;
+    thickness = 3.2;
 
     constructor() {
 
@@ -40,20 +44,26 @@ class Conf {
             expanded: false,
         });
 
+        const materialSettings = settings.addFolder({
+            title: "material settings",
+            expanded: false,
+        });
+        materialSettings.addBinding(this, "roughness", { min: 0, max: 1, step: 0.01 });
+        materialSettings.addBinding(this, "transmission", { min: 0, max: 1, step: 0.01 });
+        materialSettings.addBinding(this, "thickness", { min: 0, max: 10, step: 0.01 });
+
+
         const scenes = {
-            mixed: { min: 10, max: 300, default: 100, text: "mixed" },
-            spheres: { min: 10, max: 200, default: 50, text: "only spheres" },
-            skulls: { min: 10, max: 200, default: 50, text: "only skulls" },
-            viruses: { min: 10, max: 100, default: 30, text: "only viruses" },
-            ropes: { min: 30, max: 500, default: 100, text: "only ropes" },
-            longropes: { min: 3, max: 100, default: 10, text: "looooong ropes" },
+            spheres: { min: 1, max: 50, default: 30, text: "only spheres" },
+            skulls: { min: 1, max: 50, default: 30, text: "spheres + skulls" },
+            mixed: { min: 1, max: 50, default: 30, text: "mixed" },
         };
 
         settings.addBlade({
             view: 'list',
             label: 'scene',
             options: Object.keys(scenes).map(key => ({ ...scenes[key], value: key })),
-            value: 'mixed',
+            value: 'spheres',
         }).on('change', (ev) => {
             const params = scenes[ev.value];
             this.bodies = Math.round(params.default * (isMobile ? 0.3 : 1.0));
@@ -64,7 +74,7 @@ class Conf {
             gui.refresh();
         });
 
-        this.bodiesBinding = settings.addBinding(this, "bodies", { min: 20, max: this.maxBodies, step: 10 });
+        this.bodiesBinding = settings.addBinding(this, "bodies", { min: 1, max: this.maxBodies, step: 1 });
         settings.addBinding(this, "stepsPerSecond", { min: 120, max: 300, step: 60 });
         //settings.addBinding(this, "wireframe");
 

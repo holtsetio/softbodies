@@ -57,6 +57,6 @@ export class SoftbodyInstance {
     async update(interval) {
         this.age += interval;
         const position = this.physics.getPosition(this.id);
-        this.outOfSight = (!this.spawned || position.z > 70);
+        this.outOfSight = (!this.spawned || position.x < -70);
     }
 };

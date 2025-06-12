@@ -123,7 +123,9 @@ export class SoftbodyGeometry {
             const quat = this.physics.tetBuffer.get(tetId, "quat");
 
             const normal = rotateByQuat(attribute("normal"), quat);
-            vNormal.assign(transformNormalToView(normal));
+            const viewNormal = transformNormalToView(normal).toVar();
+            viewNormal.z.assign(viewNormal.z.max(0));
+            vNormal.assign(viewNormal);
             vDistance.assign(attribute("position").length());
 
             const a = v1.sub(v0).mul(baryCoords.x);
