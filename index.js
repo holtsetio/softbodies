@@ -44,6 +44,7 @@ const run = async ()=>{
     }
 
     const renderer = createRenderer();
+    await (await renderer.init());
 
     if (!renderer.backend.isWebGPUBackend) {
         error("Couldn't initialize WebGPU. Make sure WebGPU is supported by your Browser!");
