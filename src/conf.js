@@ -15,7 +15,7 @@ class Conf {
 
     maxBodies = 50;
 
-    scene = 'spheres';
+    scene = 'skulls';
 
     roughness = 0.1;
     transmission = 0.9;
@@ -63,7 +63,7 @@ class Conf {
             view: 'list',
             label: 'scene',
             options: Object.keys(scenes).map(key => ({ ...scenes[key], value: key })),
-            value: 'spheres',
+            value: 'skulls',
         }).on('change', (ev) => {
             const params = scenes[ev.value];
             this.bodies = Math.round(params.default * (isMobile ? 0.3 : 1.0));

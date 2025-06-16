@@ -179,6 +179,7 @@ class App {
             sphereGeometry.material.normalNode = normalMap(texture(normalMapTexture), vec2(3,3));
             sphereGeometry.material.roughnessNode = texture(specularMap).oneMinus();
             sphereGeometry.material.colorNode = texture(colorMap);*/
+            //sphereGeometry.material.side = THREE.DoubleSide;
             sphereGeometry.material.metalness = 0.0;
             sphereGeometry.material.roughness = 0.1;
             sphereGeometry.material.color = new THREE.Color(1,0.9,0.9);

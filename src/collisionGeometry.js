@@ -18,7 +18,7 @@ import {
 
 import aoFile from './assets/others_0002_ao_2k.jpg';
 import colorFile from './assets/others_0002_color_2k.jpg';
-import metalnessFile from './assets/others_0035_metallic_2k.jpg';
+//import metalnessFile from './assets/others_0035_metallic_2k.jpg';
 import normalFile from './assets/others_0002_normal_opengl_2k.jpg';
 import roughnessFile from './assets/others_0002_roughness_2k.jpg';
 
@@ -46,7 +46,7 @@ class CollisionGeometry {
         this.object.add(ball);*/
 
         const textureLoader = new THREE.TextureLoader();
-        const texturePromises = [colorFile, aoFile, roughnessFile, metalnessFile, normalFile].map(file => {
+        const texturePromises = [colorFile, aoFile, roughnessFile, normalFile].map(file => {
             return new Promise(resolve => {
                 textureLoader.load(file, texture => {
                     texture.wrapS = THREE.RepeatWrapping;
@@ -55,7 +55,7 @@ class CollisionGeometry {
                 });
             });
         });
-        const [map, aoMap, roughnessMap, metalnessMap, normalMap] = await Promise.all(texturePromises);
+        const [map, aoMap, roughnessMap, normalMap] = await Promise.all(texturePromises);
 
 
         const noise = (position) => {
